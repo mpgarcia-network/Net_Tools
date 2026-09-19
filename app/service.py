@@ -11,7 +11,7 @@ from .db import SessionLocal, utcnow
 from .engine import run_batch
 from .models import AuditLog, Device, Run, RunTarget, Schedule, Setting
 
-log = logging.getLogger("configpush.service")
+log = logging.getLogger("nettools.service")
 
 # Locks por device: evita dois runs simultaneos aplicando no mesmo equipamento.
 _DEVICE_LOCKS: set[int] = set()
@@ -61,7 +61,7 @@ def notify(payload: dict) -> None:
         s.close()
     if not url:
         return
-    payload.setdefault("app", "SSU Config Push")
+    payload.setdefault("app", "Net Tools")
     threading.Thread(target=_post_json, args=(url, payload), daemon=True).start()
 
 

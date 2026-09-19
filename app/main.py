@@ -57,7 +57,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
-log = logging.getLogger("configpush")
+log = logging.getLogger("nettools")
 
 
 @asynccontextmanager

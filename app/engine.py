@@ -14,7 +14,7 @@ from netmiko.exceptions import (
 from .config import settings
 from .security import AUTODETECT, decrypt_secret, resolve_device_type
 
-log = logging.getLogger("configpush.engine")
+log = logging.getLogger("nettools.engine")
 
 # Teto global de conexoes simultaneas (somando todos os runs em andamento).
 _GLOBAL_SEM = threading.Semaphore(max(1, settings.max_workers))

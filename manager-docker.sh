@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# SSU Config Push - Manager Docker Swarm
+# Net Tools - Manager Docker Swarm
 # =============================================================================
 # Uso: ./manager-docker.sh {start|stop|restart|status|logs|console|init-env}
 #
@@ -9,20 +9,20 @@
 # Local da VM e gitignored - NUNCA versionar.
 # =============================================================================
 
-STACK_NAME="ssu-configpush"
-SERVICE_NAME="configpush"
+STACK_NAME="nettools"
+SERVICE_NAME="app"
 COMPOSE_FILE="docker-compose.yml"
-IMAGE="ssu-configpush:local"
+IMAGE="nettools:local"
 
-# Rede overlay dedicada (fora do range das outras stacks SSU)
-NET_NAME="configpush-net"
+# Rede overlay dedicada (fora do range das outras stacks)
+NET_NAME="nettools-net"
 NET_SUBNET="10.192.201.0/24"
 NET_GATEWAY="10.192.201.1"
 
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
 load_env() {
-    ENV_FILE="${RCONFIG_ENV_PATH:-./.env}"
+    ENV_FILE="${NETTOOLS_ENV_PATH:-./.env}"
     if [ -f "$ENV_FILE" ]; then
         while IFS= read -r line || [ -n "$line" ]; do
             clean_line=$(echo "$line" | tr -d '\r')
@@ -31,7 +31,7 @@ load_env() {
             key="${clean_line%%=*}"; value="${clean_line#*=}"
             key=$(echo "$key" | tr -d ' ')
             case "$key" in
-                APP_NAME|BRAND_LOGIN|BRAND_APP|APP_PORT|SECRET_KEY|SESSION_SECRET|SESSION_MAX_AGE|SESSION_HTTPS_ONLY|ADMIN_USER|ADMIN_PASSWORD|REQUIRE_APPROVAL|TIMEZONE|NETMIKO_MAX_WORKERS|NETMIKO_CONN_TIMEOUT|SWARM_NODE_CONSTRAINT|RCONFIG_ENV_PATH)
+                APP_NAME|BRAND_LOGIN|BRAND_APP|APP_PORT|SECRET_KEY|SESSION_SECRET|SESSION_MAX_AGE|SESSION_HTTPS_ONLY|ADMIN_USER|ADMIN_PASSWORD|REQUIRE_APPROVAL|TIMEZONE|NETMIKO_MAX_WORKERS|NETMIKO_CONN_TIMEOUT|SWARM_NODE_CONSTRAINT|NETTOOLS_ENV_PATH)
                     value="${value%\"}"; value="${value#\"}"
                     export "$key=$value"
                     ;;
@@ -39,15 +39,15 @@ load_env() {
         done < "$ENV_FILE"
     fi
 
-    if [ -z "$SWARM_NODE_CONSTRAINT" ] || [ "$SWARM_NODE_CONSTRAINT" = "vmssuproxy" ]; then
+    if [ -z "$SWARM_NODE_CONSTRAINT" ]; then
         export SWARM_NODE_CONSTRAINT="$(hostname)"
     fi
 
-    local env_rel="${RCONFIG_ENV_PATH:-./.env}"
+    local env_rel="${NETTOOLS_ENV_PATH:-./.env}"
     if [[ "$env_rel" =~ ^\./ ]]; then
-        export RCONFIG_ENV_PATH="$(pwd)/${env_rel#./}"
+        export NETTOOLS_ENV_PATH="$(pwd)/${env_rel#./}"
     else
-        export RCONFIG_ENV_PATH="$env_rel"
+        export NETTOOLS_ENV_PATH="$env_rel"
     fi
 }
 

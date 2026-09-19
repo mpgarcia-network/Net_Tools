@@ -51,7 +51,7 @@ class Settings:
     def __init__(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.database_url = env(
-            "DATABASE_URL", f"sqlite:///{self.data_dir / 'configpush.db'}"
+            "DATABASE_URL", f"sqlite:///{self.data_dir / 'nettools.db'}"
         )
         if not self.secret_key:
             # fallback dev: chave derivada (emitimos aviso no start)
