@@ -1,0 +1,17 @@
+# =============================================================================
+# SSU Config Push - arquivos locais/RUNTIME que nunca podem ir pro git
+# =============================================================================
+
+# Config local (segredos de sessao/cripto e senha admin) - NUNCA versionar
+.env
+.env.bak
+
+# Banco de dados local (quando rodando fora do container)
+*.db
+data/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/

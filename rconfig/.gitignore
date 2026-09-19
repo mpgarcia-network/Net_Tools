@@ -1,0 +1,14 @@
+# =============================================================================
+# rConfig - arquivos locais/RUNTIME que nunca podem ir pro git
+# =============================================================================
+
+# Config local do Laravel/rConfig (senhas do banco + APP_KEY) - NUNCA versionar
+.env
+.env.bak
+
+# Dumps de banco gerados na operacao (README: backups)
+backup_*.sql
+
+# Certificados/chaves TLS do Nginx (client-specific) - NUNCA versionar
+nginx/ssl/*
+!nginx/ssl/.gitkeep

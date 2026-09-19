@@ -1,0 +1,158 @@
+version: '3.8'
+
+# =============================================================================
+# rConfig — stack Swarm (padrão Docker Swarm com terminação SSL via Nginx).
+# O serviço app lê o arquivo .env do host (bind mount rw): é nele que vivem as
+# variáveis do Laravel (APP_KEY, DB_*, RCONFIG_*) E as de composição usadas
+# pelo manager (RCONFIG_VERSION, portas, paths, SWARM_NODE_CONSTRAINT).
+# O Nginx escuta em portas dedicadas no host (padrão 8443 HTTPS / 8088 HTTP),
+# mantendo 80/443 livres para outros serviços/ingress. O app NÃO publica porta:
+# o tráfego entra exclusivamente pelo proxy na rede overlay.
+# O entrypoint do container já aguarda o DB e roda migrações no start — por
+# isso não usamos depends_on (ignorado no swarm de qualquer forma).
+# =============================================================================
+
+services:
+
+  nginx:
+    image: nginx:alpine
+    hostname: rconfig-proxy
+    ports:
+      - "${RCONFIG_HTTP_PORT:-8088}:80"
+      - "${RCONFIG_HTTPS_PORT:-8443}:443"
+    volumes:
+      # Caminhos ABSOLUTOS resolvidos pelo manager-docker.sh (swarm exige).
+      - "${RCONFIG_NGINX_CONF_PATH:-./nginx/conf.d}:/etc/nginx/conf.d:ro"
+      - "${RCONFIG_NGINX_SSL_PATH:-./nginx/ssl}:/etc/nginx/ssl:ro"
+    networks:
+      - rconfig-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - "node.hostname == ${SWARM_NODE_CONSTRAINT:-}"
+
+  app:
+    image: rconfig/rconfig:${RCONFIG_VERSION:-latest}
+    hostname: rconfig-app
+    # Sem ports: o acesso é feito exclusivamente via Nginx (serviço 'nginx').
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_URL=${APP_URL:-https://localhost:8443}
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE:-rconfig}
+      - DB_USERNAME=${DB_USERNAME:-rconfig_user}
+      - DB_PASSWORD=${DB_PASSWORD:-rconfig_pass}
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=null
+      - REDIS_PORT=6379
+      - QUEUE_CONNECTION=redis
+      # rConfig: não grava novo arquivo/registro quando a config não mudou.
+      - RCONFIG_KEEP_UNCHANGED=${RCONFIG_KEEP_UNCHANGED:-true}
+    volumes:
+      # Caminho ABSOLUTO resolvido pelo manager-docker.sh (swarm exige).
+      - "${RCONFIG_ENV_PATH:-./.env}:/var/www/html/rconfig/.env"
+      - storage_data:/var/www/html/rconfig/storage
+      # Patch rConfig "Keep Unchanged Config": sobrescreve a classe do Core via
+      # bind mount (sem imagem própria). Caminho ABSOLUTO resolvido pelo manager.
+      - "${RCONFIG_PATCH_PATH:-./patch/SaveConfigsToDiskAndDb.php}:/var/www/html/rconfig/app/CustomClasses/SaveConfigsToDiskAndDb.php:ro"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rconfig-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - "node.hostname == ${SWARM_NODE_CONSTRAINT:-}"
+
+  db:
+    image: mariadb:10.11
+    hostname: rconfig-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${DB_DATABASE:-rconfig}
+      MYSQL_USER: ${DB_USERNAME:-rconfig_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-rconfig_pass}
+    volumes:
+      # Datadir em BIND PATH no host (facilita backup/restore). Caminho ABSOLUTO
+      # resolvido pelo manager-docker.sh (swarm exige). Dono do dir: 999:999 (mysql).
+      - "${RCONFIG_DB_DATA_PATH:-./data/mariadb}:/var/lib/mysql"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - rconfig-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - "node.hostname == ${SWARM_NODE_CONSTRAINT:-}"
+
+  redis:
+    image: redis:7-alpine
+    hostname: rconfig-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - redis_data:/data
+    networks:
+      - rconfig-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - "node.hostname == ${SWARM_NODE_CONSTRAINT:-}"
+
+volumes:
+  # Volumes nomeados do Swarm (prefixo rconfig_*): cache do Redis e storage
+  # do app (backups de config dos devices, logs, chaves). O DATADIR do MariaDB
+  # usa bind path no host (RCONFIG_DB_DATA_PATH) para facilitar backup/restore.
+  redis_data:
+  storage_data:
+
+networks:
+  rconfig-net:
+    external: true  # Criada pelo manager-docker.sh (overlay com subnet dedicada)

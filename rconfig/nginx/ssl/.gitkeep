@@ -1,0 +1,4 @@
+# Diretório de certificados TLS do Nginx (montado em /etc/nginx/ssl).
+# NÃO commitar certificados/chaves reais: ficam neste diretório e são
+# ignorados pelo git (ver ../.gitignore). O manager-docker.sh gera um
+# par self-signed (rconfig.crt/rconfig.key) automaticamente se estiver vazio.

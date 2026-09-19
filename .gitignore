@@ -1,17 +1,19 @@
-# =============================================================================
-# SSU Config Push - arquivos locais/RUNTIME que nunca podem ir pro git
-# =============================================================================
-
-# Config local (segredos de sessao/cripto e senha admin) - NUNCA versionar
+# Segredos / runtime (nunca versionar)
 .env
 .env.bak
+*.env.bak
 
-# Banco de dados local (quando rodando fora do container)
+# Dados locais
+**/data/
 *.db
-data/
+*.db-wal
+*.db-shm
 
 # Python
 __pycache__/
 *.pyc
-venv/
 .venv/
+venv/
+
+# Logs / temporarios
+*.log
