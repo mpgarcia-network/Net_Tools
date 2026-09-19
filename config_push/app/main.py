@@ -25,11 +25,13 @@ from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import BASE_DIR, settings
-from .catalog import VENDORS, all_drivers, resolve_driver
+from .catalog import VENDORS, all_drivers, resolve_driver, resolve_os_driver
+from .connectors.librenms import LibreNMSConnector
+from .connectors.rconfig import RConfigConnector
 from .db import Base, SessionLocal, engine, ensure_schema, utcnow
 from .i18n import LANGS, t as translate, translator
 from .importer import parse_devices
-from .models import AuditLog, Device, Run, RunTarget, Schedule, Snippet, User
+from .models import AuditLog, Backup, Device, Run, RunTarget, Schedule, Snippet, User
 from .security import (
     MIN_PASSWORD_LEN,
     encrypt_secret,
@@ -38,11 +40,13 @@ from .security import (
 )
 from .service import (
     audit,
+    collect_backup,
     create_run,
     notify,
     recover_orphans,
     schedule_has_pending,
     schedule_next,
+    start_backup_all_async,
     start_run_async,
 )
 from .settings_store import (
@@ -508,25 +512,67 @@ def media(name: str):
 # Devices
 # ---------------------------------------------------------------------------
 @app.get("/devices", response_class=HTMLResponse)
-def devices_list(request: Request, q: str = "", page: int = 1):
+def devices_list(
+    request: Request,
+    q: str = "",
+    vendor: str = "",
+    driver: str = "",
+    protocol: str = "",
+    active: str = "",
+    sort: str = "name",
+    dir: str = "asc",
+    page: int = 1,
+):
     require_login(request)
     page = max(1, page)
+    sort_cols = {
+        "id": Device.id,
+        "name": Device.name,
+        "ip": Device.ip,
+        "vendor": Device.vendor,
+        "model": Device.model,
+        "device_type": Device.device_type,
+        "protocol": Device.protocol,
+        "port": Device.port,
+        "username": Device.username,
+        "tags": Device.tags,
+        "enabled": Device.enabled,
+    }
+    if sort not in sort_cols:
+        sort = "name"
+    dir = "desc" if dir == "desc" else "asc"
+    order = sort_cols[sort].desc() if dir == "desc" else sort_cols[sort].asc()
     conds = []
     if q.strip():
         like = f"%{q.strip()}%"
         conds.append(
             or_(Device.name.ilike(like), Device.ip.ilike(like), Device.tags.ilike(like))
         )
+    if vendor.strip():
+        conds.append(Device.vendor == vendor.strip())
+    if driver.strip():
+        conds.append(Device.device_type == driver.strip())
+    if protocol.strip():
+        conds.append(Device.protocol == protocol.strip())
+    if active in ("1", "0"):
+        conds.append(Device.enabled == (active == "1"))
     db = SessionLocal()
     try:
         total = db.scalar(select(func.count()).select_from(Device).where(*conds)) or 0
         devices = db.scalars(
             select(Device)
             .where(*conds)
-            .order_by(Device.name)
+            .order_by(order, Device.name)
             .offset((page - 1) * PER_PAGE)
             .limit(PER_PAGE)
         ).all()
+        driver_opts = [
+            d
+            for d in db.scalars(
+                select(Device.device_type).distinct().order_by(Device.device_type)
+            ).all()
+            if d
+        ]
     finally:
         db.close()
     pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
@@ -535,10 +581,17 @@ def devices_list(request: Request, q: str = "", page: int = 1):
         "devices.html",
         devices=devices,
         q=q,
+        vendor=vendor,
+        driver=driver,
+        protocol=protocol,
+        active=active,
         page=page,
         pages=pages,
         total=total,
         vendors=list(VENDORS.keys()),
+        drivers=driver_opts,
+        sort=sort,
+        dir=dir,
     )
 
 
@@ -700,8 +753,11 @@ def device_delete(request: Request, device_id: int):
 @app.post("/devices/bulk_edit")
 def devices_bulk_edit(
     request: Request,
-    vendor: str = Form(""),
-    q: str = Form(""),
+    scope_q: str = Form(""),
+    scope_vendor: str = Form(""),
+    scope_driver: str = Form(""),
+    scope_protocol: str = Form(""),
+    scope_active: str = Form(""),
     port: str = Form(""),
     protocol: str = Form(""),
     device_type: str = Form(""),
@@ -711,19 +767,23 @@ def devices_bulk_edit(
     password: str = Form(""),
     enable_password: str = Form(""),
 ):
-    """Edita em massa os devices que casam com o escopo (vendor e/ou busca)."""
+    """Edita em massa os devices que casam com o escopo (filtros da lista)."""
     user = require_role(request, {"admin", "operator"})
     lang = user.get("language") or "pt"
     conds = []
-    if vendor.strip():
-        conds.append(Device.vendor == vendor.strip())
-    if q.strip():
-        like = f"%{q.strip()}%"
+    if scope_q.strip():
+        like = f"%{scope_q.strip()}%"
         conds.append(
             or_(Device.name.ilike(like), Device.ip.ilike(like), Device.tags.ilike(like))
         )
-    if not conds:
-        raise HTTPException(400, translate(lang, "msg.bulk_need_scope"))
+    if scope_vendor.strip():
+        conds.append(Device.vendor == scope_vendor.strip())
+    if scope_driver.strip():
+        conds.append(Device.device_type == scope_driver.strip())
+    if scope_protocol.strip():
+        conds.append(Device.protocol == scope_protocol.strip())
+    if scope_active in ("1", "0"):
+        conds.append(Device.enabled == (scope_active == "1"))
     if not (
         port.strip()
         or protocol.strip()
@@ -772,11 +832,86 @@ def devices_bulk_edit(
             db,
             user["name"],
             "devices_bulk_edit",
-            f"vendor={vendor} q={q} n={n} port={port} protocol={protocol} "
-            f"driver={device_type} tags={tags} enabled={enabled} "
+            f"scope_vendor={scope_vendor} scope_q={scope_q} scope_driver={scope_driver} "
+            f"scope_protocol={scope_protocol} scope_active={scope_active} n={n} "
+            f"port={port} protocol={protocol} driver={device_type} tags={tags} enabled={enabled} "
             f"username={username} password={'set' if password else '-'} "
             f"enable={'set' if enable_password else '-'}",
         )
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/devices", status_code=303)
+
+
+CONNECTORS = {"librenms": LibreNMSConnector, "rconfig": RConfigConnector}
+# OS que nao sao alvo de push de config (servidores) — ignorados no sync
+SYNC_SKIP_OS = {"windows", "linux"}
+
+
+@app.post("/devices/sync")
+def devices_sync(request: Request, source: str = Form("")):
+    """Importa/atualiza o inventario a partir de uma fonte externa."""
+    user = require_role(request, {"admin", "operator"})
+    lang = user.get("language") or "pt"
+    src = source.strip().lower()
+    if src not in CONNECTORS:
+        raise HTTPException(400, translate(lang, "msg.source_invalid"))
+    conn = CONNECTORS[src]()
+    if not conn.available():
+        raise HTTPException(400, translate(lang, "msg.connector_unavailable"))
+    rows = conn.list_devices()
+    db = SessionLocal()
+    created = updated = 0
+    try:
+        for row in rows:
+            ip = (row.get("ip") or "").strip()
+            name = (row.get("name") or "").strip()
+            if not ip and not name:
+                continue
+            row_os = str(row.get("os") or "").strip().lower()
+            if row_os in SYNC_SKIP_OS:
+                continue
+            target = None
+            ext = str(row.get("external_id") or "").strip()
+            if ext:
+                target = db.scalar(
+                    select(Device).where(Device.source == src, Device.external_id == ext)
+                )
+            if target is None and ip:
+                target = db.scalar(select(Device).where(Device.ip == ip))
+            is_new = target is None
+            if is_new:
+                target = Device()
+                db.add(target)
+            if name:
+                target.name = name
+            if ip:
+                target.ip = ip
+            if row.get("vendor"):
+                target.vendor = str(row["vendor"])
+            if row.get("model"):
+                target.model = str(row["model"])
+            if row.get("port"):
+                try:
+                    target.port = int(row["port"])
+                except (TypeError, ValueError):
+                    pass
+            target.source = src
+            if ext:
+                target.external_id = ext
+            os_name = str(row.get("os") or "").strip()
+            if target.vendor and target.model:
+                target.device_type = resolve_driver(target.vendor, target.model, "")
+            else:
+                target.device_type = resolve_os_driver(os_name) or resolve_driver(
+                    target.vendor, target.model, ""
+                )
+            if is_new:
+                created += 1
+            else:
+                updated += 1
+        audit(db, user["name"], "devices_sync", f"source={src} created={created} updated={updated}")
         db.commit()
     finally:
         db.close()
@@ -1025,6 +1160,11 @@ def devices_import_confirm(request: Request):
         notice=notice + ".",
         import_errors=errors,
         vendors=list(VENDORS.keys()),
+        vendor="",
+        driver="",
+        protocol="",
+        active="",
+        drivers=[],
     )
 
 
@@ -1570,6 +1710,101 @@ def healthz():
     finally:
         db.close()
     return JSONResponse({"status": "ok", "app": settings.app_name})
+
+
+# ---------------------------------------------------------------------------
+# Backups (coleta + versionamento + diff)
+# ---------------------------------------------------------------------------
+BACKUP_STALE_HOURS = 24
+
+
+@app.get("/backups", response_class=HTMLResponse)
+def backups_list(request: Request):
+    require_login(request)
+    db = SessionLocal()
+    try:
+        devices = db.scalars(select(Device).order_by(Device.name)).all()
+        rows = db.scalars(
+            select(Backup).order_by(Backup.id.desc()).limit(5000)
+        ).all()
+    finally:
+        db.close()
+    last: dict[int, Backup] = {}
+    for b in rows:
+        if b.device_id and b.device_id not in last:
+            last[b.device_id] = b
+    now = utcnow()
+    items = []
+    counts = {"ok": 0, "failed": 0, "stale": 0, "never": 0}
+    for d in devices:
+        b = last.get(d.id)
+        if b is None:
+            state = "never"
+        elif b.status != "ok":
+            state = "failed"
+        elif b.created_at and (now - b.created_at) > timedelta(hours=BACKUP_STALE_HOURS):
+            state = "stale"
+        else:
+            state = "ok"
+        counts[state] += 1
+        items.append({"device": d, "last": b, "state": state})
+    return render(
+        request,
+        "backups.html",
+        items=items,
+        counts=counts,
+        stale_hours=BACKUP_STALE_HOURS,
+    )
+
+
+@app.post("/backups/collect-all")
+def backups_collect_all(request: Request):
+    user = require_role(request, {"admin", "operator"})
+    db = SessionLocal()
+    try:
+        audit(db, user["name"], "backup_all", "coleta em lote")
+        db.commit()
+    finally:
+        db.close()
+    start_backup_all_async("manual", user["name"])
+    return RedirectResponse("/backups", status_code=303)
+
+
+@app.post("/backups/collect/{device_id}")
+def backups_collect(request: Request, device_id: int):
+    user = require_role(request, {"admin", "operator"})
+    collect_backup(device_id, "manual", user["name"])
+    return RedirectResponse(f"/backups/{device_id}", status_code=303)
+
+
+@app.get("/backups/{device_id}", response_class=HTMLResponse)
+def backup_detail(request: Request, device_id: int):
+    require_login(request)
+    db = SessionLocal()
+    try:
+        device = db.get(Device, device_id)
+        if not device:
+            raise HTTPException(404, "device nao encontrado")
+        history = db.scalars(
+            select(Backup)
+            .where(Backup.device_id == device_id)
+            .order_by(Backup.id.desc())
+            .limit(100)
+        ).all()
+    finally:
+        db.close()
+    from . import backup as bk
+
+    versions = bk.versions(device.name)
+    diff = bk.diff(device.name)
+    return render(
+        request,
+        "backup_detail.html",
+        device=device,
+        history=history,
+        versions=versions,
+        diff=diff,
+    )
 
 
 @app.get("/approvals", response_class=HTMLResponse)

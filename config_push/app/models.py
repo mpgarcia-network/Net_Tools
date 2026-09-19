@@ -46,6 +46,10 @@ class Device(Base):
     enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[str] = mapped_column(String(255), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Origem do cadastro: manual | librenms | rconfig | xlsx
+    source: Mapped[str] = mapped_column(String(20), default="manual", index=True)
+    # ID na fonte externa (correlacao entre ferramentas)
+    external_id: Mapped[str] = mapped_column(String(191), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -131,6 +135,29 @@ class Schedule(Base):
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by: Mapped[str] = mapped_column(String(120), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class Backup(Base):
+    """Registro de uma coleta de config (backup) de um device.
+
+    O conteudo versionado fica em Git (app/backup.py); aqui guardamos o
+    metadado para relatorios de cobertura/status.
+    """
+
+    __tablename__ = "backups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    device_name: Mapped[str] = mapped_column(String(191), default="")
+    device_ip: Mapped[str] = mapped_column(String(191), default="")
+    # ok | failed
+    status: Mapped[str] = mapped_column(String(20), default="ok", index=True)
+    config_hash: Mapped[str] = mapped_column(String(64), default="")
+    changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    message: Mapped[str] = mapped_column(Text, default="")
+    # manual | schedule | push
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
 
 class AuditLog(Base):

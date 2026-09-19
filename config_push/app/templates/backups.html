@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('bk.title') }}</h1>
+  {% if user.role in ['admin','operator'] %}
+  <form method="post" action="/backups/collect-all"
+        onsubmit="return confirm('{{ t('bk.collect_all') }}?')">
+    <button class="btn primary" type="submit">{{ t('bk.collect_all') }}</button>
+  </form>
+  {% endif %}
+</div>
+
+<p class="muted">
+  {{ t('bk.summary', ok=counts.ok, failed=counts.failed, stale=counts.stale, never=counts.never) }}
+  · {{ t('bk.stale_hint', h=stale_hours) }}
+</p>
+
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.status') }}</th><th>{{ t('bk.last') }}</th><th>{{ t('bk.changed') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for it in items %}
+    {% set d = it.device %}
+    {% set st = it.state %}
+    <tr>
+      <td>{{ d.id }}</td>
+      <td>{{ d.name }}</td>
+      <td>{{ d.ip }}</td>
+      <td>
+        <span class="st st-{{ 'success' if st == 'ok' else 'failed' if st == 'failed' else 'running' if st == 'stale' else 'pending' }}">
+          {{ t('bk.state_' ~ st) }}
+        </span>
+      </td>
+      <td>{{ it.last.created_at.strftime('%d/%m/%Y %H:%M') if it.last and it.last.created_at else '-' }}</td>
+      <td>{{ t('c.yes') if it.last and it.last.changed else t('c.no') if it.last else '-' }}</td>
+      <td class="nowrap">
+        <a href="/backups/{{ d.id }}">{{ t('c.view') }}</a>
+        {% if user.role in ['admin','operator'] %}
+        <form method="post" action="/backups/collect/{{ d.id }}" style="display:inline">
+          <button class="link" type="submit">{{ t('bk.collect') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">{{ t('dev.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

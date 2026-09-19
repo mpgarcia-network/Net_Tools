@@ -1,5 +1,20 @@
 # Changelog — Net Tools
 
+## v0.2.0 — 2026-09-19
+
+**Núcleo NCM**
+- **Backups**: coleta de config por device, versionamento Git (`dulwich`), histórico,
+  **diff** entre versões e relatório de cobertura (ok/falhou/atrasado/nunca).
+- **Integração**: conectores **LibreNMS** (descoberta) e **rConfig** (inventário +
+  status de backup + diff); sincronização de inventário com `source`/`external_id`;
+  derivação de vendor/modelo a partir do `os` do LibreNMS.
+
+**Experiência (Devices)**
+- **Filtros por coluna** (busca, vendor, driver, protocolo, ativo).
+- **Ordenação por coluna** (clique no cabeçalho, asc/desc).
+- **Edição em massa** usando o escopo dos filtros (porta, protocolo, driver, tags,
+  usuário, senha, enable, ativo).
+
 ## v0.1.0 — 2026-09-19
 
 Primeira base do produto (derivada do motor interno de push + governança).

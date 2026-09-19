@@ -10,7 +10,7 @@ from sqlalchemy import select
 from .config import settings
 from .db import SessionLocal, utcnow
 from .engine import run_batch
-from .models import AuditLog, Device, Run, RunTarget, Schedule, Setting
+from .models import AuditLog, Backup, Device, Run, RunTarget, Schedule, Setting
 
 log = logging.getLogger("app.service")
 
@@ -304,6 +304,86 @@ def recover_orphans() -> int:
 
 def start_run_async(run_id: int) -> None:
     threading.Thread(target=execute_run, args=(run_id,), daemon=True).start()
+
+
+def collect_backup(device_id: int, source: str = "manual", author: str = "") -> dict:
+    """Coleta a config de um device, versiona em Git e registra em Backup."""
+    from . import backup as bk
+
+    db = SessionLocal()
+    try:
+        dev = db.get(Device, device_id)
+        if dev is None:
+            return {"status": "failed", "message": "device removido"}
+        dev_dict = device_dict(db, dev)
+        err = ""
+        try:
+            content, _dtype = bk.collect(dev_dict)
+        except Exception as e:  # noqa: BLE001
+            content, err = "", str(e)[:1000]
+        now = utcnow()
+        if not content or not content.strip():
+            row = Backup(
+                device_id=dev.id,
+                device_name=dev.name,
+                device_ip=dev.ip,
+                status="failed",
+                message=err or "sem resposta/config",
+                source=source,
+                created_at=now,
+            )
+            db.add(row)
+            db.commit()
+            notify(
+                {"event": "backup_failed", "device": dev.name, "error": row.message}
+            )
+            return {"status": "failed", "message": row.message}
+        before = bk.latest_hash(dev.name)
+        new_hash = bk.commit(dev.name, content, message=f"backup {dev.name} ({source})")
+        changed = new_hash is not None
+        row = Backup(
+            device_id=dev.id,
+            device_name=dev.name,
+            device_ip=dev.ip,
+            status="ok",
+            config_hash=new_hash or before or "",
+            changed=changed,
+            message="alterou" if changed else "sem alteracao",
+            source=source,
+            created_at=now,
+        )
+        db.add(row)
+        audit(db, author or source, "backup", f"{dev.name} {'alterou' if changed else 'sem alteracao'}")
+        db.commit()
+        return {"status": "ok", "changed": changed}
+    finally:
+        db.close()
+
+
+def collect_all_backups(source: str = "schedule", author: str = "") -> int:
+    """Coleta backup de todos os devices ativos (concorrencia limitada)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    db = SessionLocal()
+    try:
+        ids = [
+            d.id
+            for d in db.scalars(select(Device).where(Device.enabled == True)).all()  # noqa: E712
+        ]
+    finally:
+        db.close()
+    if not ids:
+        return 0
+    workers = max(1, min(settings.max_workers, len(ids)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(lambda i: collect_backup(i, source, author), ids))
+    return len(ids)
+
+
+def start_backup_all_async(source: str = "manual", author: str = "") -> None:
+    threading.Thread(
+        target=collect_all_backups, args=(source, author), daemon=True
+    ).start()
 
 
 def schedule_next(schedule: Schedule) -> None:

@@ -1,9 +1,8 @@
-"""Conectores opcionais para fontes de inventario/backup externas.
+"""Conectores para fontes externas.
 
-O Net Tools funciona de forma autonoma (inventario + backup proprios). Os
-conectores permitem reaproveitar fontes ja existentes no ambiente do cliente:
+O Config Push funciona de forma autonoma; os conectores permitem integrar com
+ferramentas ja existentes no ambiente:
 
-- LibreNMS: descoberta/inventario
-- Oxidized: backup/versionamento de config
-- rConfig: import de inventario
+- LibreNMS: descoberta/inventario (API)
+- rConfig: inventario + backup/versionamento de config (API)
 """

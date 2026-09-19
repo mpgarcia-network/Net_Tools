@@ -13,7 +13,7 @@ class Connector(Protocol):
         ...
 
     def list_devices(self) -> list[dict]:
-        """Devolve devices normalizados: name, ip, vendor, model, source, external_id."""
+        """Devices normalizados: name, ip, vendor, model, source, external_id."""
         ...
 
     def get_config(self, external_id: str) -> str:

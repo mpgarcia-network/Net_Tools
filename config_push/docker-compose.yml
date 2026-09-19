@@ -26,6 +26,12 @@ services:
       - TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
       - NETMIKO_MAX_WORKERS=${NETMIKO_MAX_WORKERS:-10}
       - NETMIKO_CONN_TIMEOUT=${NETMIKO_CONN_TIMEOUT:-30}
+      # Integracao (conectores opcionais)
+      - LIBRENMS_URL=${LIBRENMS_URL:-}
+      - LIBRENMS_TOKEN=${LIBRENMS_TOKEN:-}
+      - RCONFIG_URL=${RCONFIG_URL:-}
+      - RCONFIG_TOKEN=${RCONFIG_TOKEN:-}
+      - RCONFIG_VERIFY_TLS=${RCONFIG_VERIFY_TLS:-true}
     volumes:
       - data:/data
     networks:

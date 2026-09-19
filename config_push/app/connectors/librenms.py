@@ -6,11 +6,48 @@ Configuracao por env:
 
 Endpoint usado:
 - GET /api/v0/devices -> lista de devices
+
+O ``vendor`` do LibreNMS costuma vir vazio; derivamos **vendor/modelo do
+catalogo** a partir do campo ``os`` (e da versao, no caso do Dell).
 """
 
 import json
 import os
 from urllib import request
+
+# os (LibreNMS) -> (vendor do catalogo, modelo/plataforma do catalogo)
+_OS_VENDOR_MODEL: dict[str, tuple[str, str]] = {
+    "procurve": ("Aruba", "ArubaOS-Switch (ProCurve/16xx/29xx)"),
+    "arubaos": ("Aruba", "ArubaOS (Controladora Wireless)"),
+    "arubaos-cx": ("Aruba", "ArubaOS-CX (CX 6000/6300/8xxx)"),
+    "comware": ("HP", "Comware (3Com/H3C)"),
+    "hp_comware": ("HP", "Comware (3Com/H3C)"),
+    "3com": ("HP", "Comware (3Com/H3C)"),
+    "h3c": ("HP", "Comware (3Com/H3C)"),
+    "fortigate": ("Fortinet", "FortiGate (FortiOS)"),
+    "fortios": ("Fortinet", "FortiGate (FortiOS)"),
+    "ios": ("Cisco", "IOS / IOS-XE (Catalyst, ISR)"),
+    "iosxe": ("Cisco", "IOS / IOS-XE (Catalyst, ISR)"),
+    "nxos": ("Cisco", "NX-OS (Nexus)"),
+    "iosxr": ("Cisco", "IOS-XR"),
+    "asa": ("Cisco", "ASA"),
+    "eos": ("Arista", "EOS"),
+    "junos": ("Juniper", "JunOS"),
+    "vrp": ("Huawei", "VRP (S/CE)"),
+    "routeros": ("MikroTik", "RouterOS"),
+    "panos": ("Palo Alto", "PAN-OS"),
+    "vyos": ("VyOS", "VyOS"),
+    "exos": ("Extreme", "EXOS (Summit)"),
+}
+
+
+def _vendor_model(os_name: str, version: str) -> tuple[str, str] | None:
+    o = (os_name or "").strip().lower()
+    if o == "powerconnect":
+        # Dell PowerConnect: versao 6.x => familia OS6
+        ver = (version or "").strip()
+        return ("Dell", "OS6") if ver.startswith("6") else ("Dell", "PowerConnect")
+    return _OS_VENDOR_MODEL.get(o)
 
 
 class LibreNMSConnector:
@@ -31,19 +68,28 @@ class LibreNMSConnector:
                 f"{self.base}/api/v0/devices",
                 headers={"X-Auth-Token": self.token, "Accept": "application/json"},
             )
-            with request.urlopen(req, timeout=30) as resp:
+            with request.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read().decode())
         except Exception:  # noqa: BLE001
             return []
         out = []
         for d in data.get("devices", []):
+            os_name = d.get("os") or ""
+            version = d.get("version") or ""
+            mapped = _vendor_model(os_name, version)
+            if mapped:
+                vendor, model = mapped
+            else:
+                vendor = d.get("vendor") or ""
+                model = d.get("hardware") or ""
             out.append(
                 {
                     "name": d.get("sysName") or d.get("hostname") or "",
                     "ip": d.get("hostname") or "",
-                    "vendor": d.get("vendor") or "",
-                    "model": d.get("hardware") or "",
-                    "os": d.get("os") or "",
+                    "vendor": vendor,
+                    "model": model,
+                    "os": os_name,
+                    "version": version,
                     "source": self.name,
                     "external_id": str(d.get("device_id") or ""),
                 }

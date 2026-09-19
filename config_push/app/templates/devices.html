@@ -23,28 +23,68 @@
   <button class="btn" type="submit">{{ t('dev.preview_import') }}</button>
 </form>
 
-<form class="card" method="get" action="/devices">
+{% if user.role in ['admin','operator'] %}
+<form class="card" method="post" action="/devices/sync">
   <div class="row">
-    <label style="flex:1">{{ t('dev.search_label') }}<input name="q" value="{{ q }}"></label>
+    <label style="flex:1">{{ t('dev.sync') }} — {{ t('dev.sync_hint') }}
+      <select name="source">
+        <option value="librenms">LibreNMS</option>
+        <option value="rconfig">rConfig</option>
+      </select>
+    </label>
+    <button class="btn primary" type="submit">{{ t('dev.sync') }}</button>
+  </div>
+</form>
+{% endif %}
+
+<form class="card" method="get" action="/devices">
+  <div class="grid2">
+    <label>{{ t('dev.search_label') }}<input name="q" value="{{ q }}"></label>
+    <label>{{ t('c.vendor') }}
+      <select name="vendor">
+        <option value="">{{ t('bulk.any') }}</option>
+        {% for v in vendors %}<option value="{{ v }}" {{ 'selected' if vendor == v }}>{{ v }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>{{ t('c.driver') }}
+      <select name="driver">
+        <option value="">{{ t('bulk.any') }}</option>
+        {% for d in drivers %}<option value="{{ d }}" {{ 'selected' if driver == d }}>{{ d }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>{{ t('df.protocol') }}
+      <select name="protocol">
+        <option value="">{{ t('bulk.any') }}</option>
+        <option value="ssh" {{ 'selected' if protocol == 'ssh' }}>ssh</option>
+        <option value="telnet" {{ 'selected' if protocol == 'telnet' }}>telnet</option>
+      </select>
+    </label>
+    <label>{{ t('c.active') }}
+      <select name="active">
+        <option value="">{{ t('bulk.any') }}</option>
+        <option value="1" {{ 'selected' if active == '1' }}>{{ t('c.yes') }}</option>
+        <option value="0" {{ 'selected' if active == '0' }}>{{ t('c.no') }}</option>
+      </select>
+    </label>
+  </div>
+  <div class="row end">
+    <a class="btn" href="/devices">{{ t('c.clear') }}</a>
     <button class="btn primary" type="submit">{{ t('c.search') }}</button>
-    {% if q %}<a class="btn" href="/devices">{{ t('c.clear') }}</a>{% endif %}
   </div>
 </form>
 
 {% if user.role in ['admin','operator'] %}
 <details class="card">
-  <summary><strong>{{ t('bulk.title') }}</strong></summary>
-  <p class="muted">{{ t('bulk.hint') }}</p>
+  <summary><strong>{{ t('bulk.title') }}</strong> <span class="muted">({{ total }} {{ t('bulk.in_scope') }})</span></summary>
+  <p class="muted">{{ t('bulk.hint') }} {{ t('bulk.scope_hint') }}</p>
   <form method="post" action="/devices/bulk_edit"
-        onsubmit="return confirm('{{ t('bulk.apply') }}?')">
+        onsubmit="return confirm('{{ t('bulk.apply') }}? ({{ total }})')">
+    <input type="hidden" name="scope_q" value="{{ q }}">
+    <input type="hidden" name="scope_vendor" value="{{ vendor }}">
+    <input type="hidden" name="scope_driver" value="{{ driver }}">
+    <input type="hidden" name="scope_protocol" value="{{ protocol }}">
+    <input type="hidden" name="scope_active" value="{{ active }}">
     <div class="grid2">
-      <label>{{ t('bulk.scope_vendor') }}
-        <select name="vendor">
-          <option value="">{{ t('bulk.any') }}</option>
-          {% for v in vendors %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>{{ t('bulk.scope_q') }}<input name="q" value="{{ q }}"></label>
       <label>{{ t('df.port') }}<input type="number" name="port" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('df.protocol') }}
         <select name="protocol">
@@ -71,9 +111,14 @@
 </details>
 {% endif %}
 
+{% set qs = 'q=' ~ (q|urlencode) ~ '&vendor=' ~ (vendor|urlencode) ~ '&driver=' ~ (driver|urlencode) ~ '&protocol=' ~ (protocol|urlencode) ~ '&active=' ~ (active|urlencode) %}
+{% macro th(field, label) -%}
+{% set nd = 'desc' if (sort == field and dir == 'asc') else 'asc' %}
+<th><a href="/devices?{{ qs }}&sort={{ field }}&dir={{ nd }}">{{ label }}{% if sort == field %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a></th>
+{%- endmacro %}
 <p class="muted">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
 <table>
-  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.vendor') }}</th><th>{{ t('df.model') }}</th><th>{{ t('c.driver') }}</th><th>{{ t('c.protocol') }}</th><th>{{ t('c.port') }}</th><th>{{ t('c.username') }}</th><th>{{ t('c.tags') }}</th><th>{{ t('c.active') }}</th><th></th></tr></thead>
+  <thead><tr>{{ th('id', '#') }}{{ th('name', t('c.name')) }}{{ th('ip', t('c.ip')) }}{{ th('vendor', t('c.vendor')) }}{{ th('model', t('df.model')) }}{{ th('device_type', t('c.driver')) }}{{ th('protocol', t('c.protocol')) }}{{ th('port', t('c.port')) }}{{ th('username', t('c.username')) }}{{ th('tags', t('c.tags')) }}{{ th('enabled', t('c.active')) }}<th></th></tr></thead>
   <tbody>
   {% for d in devices %}
     <tr>
@@ -105,8 +150,9 @@
 
 {% if pages > 1 %}
 <div class="row end">
-  {% if page > 1 %}<a class="btn" href="/devices?page={{ page - 1 }}&q={{ q|urlencode }}">{{ t('c.prev') }}</a>{% endif %}
-  {% if page < pages %}<a class="btn" href="/devices?page={{ page + 1 }}&q={{ q|urlencode }}">{{ t('c.next') }}</a>{% endif %}
+  {% set qsd = qs ~ '&sort=' ~ sort ~ '&dir=' ~ dir %}
+  {% if page > 1 %}<a class="btn" href="/devices?page={{ page - 1 }}&{{ qsd }}">{{ t('c.prev') }}</a>{% endif %}
+  {% if page < pages %}<a class="btn" href="/devices?page={{ page + 1 }}&{{ qsd }}">{{ t('c.next') }}</a>{% endif %}
 </div>
 {% endif %}
 {% endblock %}
