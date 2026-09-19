@@ -7,11 +7,12 @@ from urllib import request as urlrequest
 from croniter import croniter
 from sqlalchemy import select
 
+from .config import settings
 from .db import SessionLocal, utcnow
 from .engine import run_batch
 from .models import AuditLog, Device, Run, RunTarget, Schedule, Setting
 
-log = logging.getLogger("nettools.service")
+log = logging.getLogger("app.service")
 
 # Locks por device: evita dois runs simultaneos aplicando no mesmo equipamento.
 _DEVICE_LOCKS: set[int] = set()
@@ -61,7 +62,7 @@ def notify(payload: dict) -> None:
         s.close()
     if not url:
         return
-    payload.setdefault("app", "Net Tools")
+    payload.setdefault("app", settings.app_name)
     threading.Thread(target=_post_json, args=(url, payload), daemon=True).start()
 
 
