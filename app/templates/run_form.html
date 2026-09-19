@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('rf.title') }}</h1>
+
+<div class="steps">
+  <span class="stepdot active" id="dot-1">{{ t('rf.step1') }}</span>
+  <span class="stepdot" id="dot-2">{{ t('rf.step2') }}</span>
+  <span class="stepdot" id="dot-3">{{ t('rf.step3') }}</span>
+</div>
+
+<form class="card" method="post" action="/runs/create" id="runForm">
+
+  <div class="wizard-step active" id="step-1">
+    <strong>{{ t('rf.models') }}</strong>
+    <p class="muted">{{ t('rf.models_hint') }}</p>
+    <div class="devlist">
+      {% for s in snippets %}
+      <label class="chk devitem" data-search="{{ (s.name ~ ' ' ~ s.description)|lower }}">
+        <input type="checkbox" name="snippet_ids" value="{{ s.id }}"> {{ s.name }}
+        <span class="muted">— {{ snippet_drivers.get(s.id, t('mod.any')) }}</span>
+      </label>
+      {% else %}
+      <p class="muted">{{ t('rf.no_models') }}</p>
+      {% endfor %}
+    </div>
+    <label>{{ t('rf.commands') }}
+      <textarea name="commands" rows="8" spellcheck="false" placeholder="conf t&#10;...&#10;end&#10;wr memory"></textarea>
+    </label>
+    <div class="row end">
+      <button class="btn primary" type="button" onclick="goStep(2)">{{ t('rf.next_where') }}</button>
+    </div>
+  </div>
+
+  <div class="wizard-step" id="step-2">
+    <div class="row between">
+      <strong>{{ t('rf.devices') }}</strong>
+      <div class="row">
+        <select id="vendorFilter" onchange="filterDevices()">
+          <option value="">{{ t('rf.all_vendors') }}</option>
+          {% for v in devices|map(attribute='vendor')|unique|sort %}
+          {% if v %}<option value="{{ v }}">{{ v }}</option>{% endif %}
+          {% endfor %}
+        </select>
+        <select id="tagFilter" onchange="filterDevices()">
+          <option value="">{{ t('rf.all_tags') }}</option>
+          {% for tg in tags %}<option value="{{ tg }}">{{ tg }}</option>{% endfor %}
+        </select>
+        <input type="text" id="devFilter" placeholder="{{ t('rf.filter_placeholder') }}" onkeyup="filterDevices()">
+        <button class="btn" type="button" onclick="selectFilteredDevices(true)">{{ t('rf.select_filtered') }}</button>
+        <button class="btn" type="button" onclick="selectFilteredDevices(false)">{{ t('rf.clear_selection') }}</button>
+      </div>
+    </div>
+    <div class="devlist" id="devlist">
+      {% for d in devices %}
+      <label class="chk devitem" data-vendor="{{ d.vendor }}" data-tags="{{ d.tags }}" data-search="{{ (d.name ~ ' ' ~ d.ip ~ ' ' ~ d.tags ~ ' ' ~ d.device_type)|lower }}">
+        <input type="checkbox" name="device_ids" value="{{ d.id }}"> {{ d.name }}
+        <span class="muted">{{ d.ip }} · {{ d.vendor }} · {{ d.device_type }}{% if d.tags %} · {{ d.tags }}{% endif %}</span>
+      </label>
+      {% else %}
+      <p class="muted">{{ t('rf.no_devices') }}</p>
+      {% endfor %}
+    </div>
+    <div class="row between">
+      <button class="btn" type="button" onclick="goStep(1)">{{ t('rf.back') }}</button>
+      <button class="btn primary" type="button" onclick="goStep(3)">{{ t('rf.next_how') }}</button>
+    </div>
+  </div>
+
+  <div class="wizard-step" id="step-3">
+    <strong>{{ t('rf.how') }}</strong>
+    <label class="chk"><input type="radio" name="dry_run" value="1" checked> {{ t('rf.simulate') }}</label>
+    <label class="chk"><input type="radio" name="dry_run" value=""> {{ t('rf.apply') }}</label>
+
+    <details class="adv">
+      <summary>{{ t('rf.advanced') }}</summary>
+      <label class="chk"><input type="checkbox" name="capture_diff" value="1"> {{ t('rf.capture_diff') }}</label>
+      <p class="muted">{{ t('rf.approval_note') }}</p>
+    </details>
+
+    <div class="row between">
+      <button class="btn" type="button" onclick="goStep(2)">{{ t('rf.back') }}</button>
+      <button class="btn primary" type="submit">{{ t('rf.create') }}</button>
+    </div>
+  </div>
+</form>
+{% endblock %}

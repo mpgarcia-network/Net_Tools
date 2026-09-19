@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('apr.title') }}</h1>
+  {% if pending and user.role in ['admin','approver'] %}
+  <form method="post" action="/approvals/approve-all" onsubmit="return confirm('{{ t('apr.approve_all') }} ({{ pending|length }})?')">
+    <button class="btn primary" type="submit">{{ t('apr.approve_all') }} ({{ pending|length }})</button>
+  </form>
+  {% endif %}
+</div>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.model') }}</th><th>{{ t('run.th_targets') }}</th><th>{{ t('c.requester') }}</th><th>{{ t('c.created') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for r in pending %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.snippet_name }}</td>
+      <td>{{ r.targets|length }}</td>
+      <td>{{ r.requested_by }}</td>
+      <td>{{ r.created_at.strftime('%d/%m %H:%M') if r.created_at else '' }}</td>
+      <td class="nowrap">
+        <a href="/runs/{{ r.id }}">{{ t('c.view') }}</a>
+        {% if user.role in ['admin','approver'] %}
+        <form method="post" action="/runs/{{ r.id }}/approve" style="display:inline">
+          <button class="link ok" type="submit">{{ t('apr.approve') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">{{ t('apr.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

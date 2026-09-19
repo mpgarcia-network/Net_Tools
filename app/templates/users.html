@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('usr.title') }}</h1>
+  <a class="btn primary" href="/users/new">{{ t('usr.new') }}</a>
+</div>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.username') }}</th><th>{{ t('usr.th_role') }}</th><th>{{ t('c.active') }}</th><th>{{ t('c.created') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{{ u.id }}</td>
+      <td>{{ u.username }}</td>
+      <td><span class="badge">{{ u.role }}</span></td>
+      <td>{{ t('c.yes') if u.active else t('c.no') }}</td>
+      <td>{{ u.created_at.strftime('%d/%m/%Y') if u.created_at else '' }}</td>
+      <td class="nowrap">
+        <a href="/users/{{ u.id }}/edit">{{ t('c.edit') }}</a>
+        {% if u.username != user.name %}
+        <form method="post" action="/users/{{ u.id }}/delete" style="display:inline"
+              onsubmit="return confirm('{{ t('c.remove') }} {{ u.username }}?')">
+          <button class="link danger" type="submit">{{ t('c.remove') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">{{ t('usr.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="muted">{{ t('usr.roles_hint') }}</p>
+{% endblock %}

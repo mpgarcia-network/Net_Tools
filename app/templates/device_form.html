@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('df.title_edit') if device else t('df.title_new') }}</h1>
+<form class="card" method="post" action="/devices/save">
+  <input type="hidden" name="device_id" value="{{ device.id if device else '' }}">
+  <div class="grid2">
+    <label>{{ t('df.name') }} *<input name="name" required value="{{ device.name if device else '' }}"></label>
+    <label>{{ t('df.ip') }} *<input name="ip" required value="{{ device.ip if device else '' }}"></label>
+
+    <label>{{ t('df.vendor') }}
+      <select name="vendor" id="vendor" onchange="filterModels()">
+        <option value="">--</option>
+        {% for v in vendors.keys() %}
+        <option value="{{ v }}" {{ 'selected' if device and device.vendor == v }}>{{ v }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>{{ t('df.model') }}
+      <select name="model" id="model" onchange="updateDriver()">
+        <option value="">--</option>
+        {% for v, models in vendors.items() %}
+          {% for m, d in models %}
+          <option value="{{ m }}" data-vendor="{{ v }}" data-driver="{{ d }}"
+            {{ 'selected' if device and device.vendor == v and device.model == m }}>{{ m }}</option>
+          {% endfor %}
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>{{ t('df.driver') }}
+      <input id="driver_display" value="{{ device.device_type if device else '' }}" readonly>
+      <input type="hidden" name="device_type" id="device_type" value="{{ device.device_type if device else '' }}">
+    </label>
+
+    <label>{{ t('df.protocol') }}
+      <select name="protocol">
+        {% set p = device.protocol if device else 'ssh' %}
+        <option value="ssh" {{ 'selected' if p == 'ssh' }}>ssh</option>
+        <option value="telnet" {{ 'selected' if p == 'telnet' }}>telnet</option>
+      </select>
+    </label>
+    <label>{{ t('df.port') }}<input type="number" name="port" value="{{ device.port if device else 22 }}"></label>
+
+    <label>{{ t('df.username') }}<input name="username" value="{{ device.username if device else '' }}"></label>
+    <label>{{ t('df.password') }} {{ t('df.password_keep') if device else '' }}
+      <input type="password" name="password" autocomplete="new-password"></label>
+    <label>{{ t('df.enable') }}
+      <input type="password" name="enable_password" autocomplete="new-password"></label>
+    <label>{{ t('df.tags') }}<input name="tags" value="{{ device.tags if device else '' }}"></label>
+    <label class="chk"><input type="checkbox" name="enabled" value="1"
+      {{ 'checked' if (device.enabled if device else true) }}> {{ t('df.enabled') }}</label>
+  </div>
+  <div class="row end">
+    <span id="testResult" class="muted"></span>
+    <button class="btn" type="button" onclick="testDevice()">{{ t('df.test') }}</button>
+    <a class="btn" href="/devices">{{ t('c.cancel') }}</a>
+    <button class="btn primary" type="submit">{{ t('c.save') }}</button>
+  </div>
+</form>
+{% endblock %}

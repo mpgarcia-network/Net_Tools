@@ -1,0 +1,376 @@
+"""Internacionalizacao (PT/EN/ES).
+
+Dicionario simples: chave -> {pt, en, es}. O idioma do usuario (campo
+`language`) e aplicado por requisicao via `translator(lang)`.
+"""
+
+LANGS: dict[str, str] = {"pt": "Português", "en": "English", "es": "Español"}
+DEFAULT_LANG = "pt"
+
+# fmt: off
+T: dict[str, dict[str, str]] = {
+    # --- navegacao / shell ---
+    "nav.dashboard": {"pt": "Dashboard", "en": "Dashboard", "es": "Panel"},
+    "nav.devices": {"pt": "Devices", "en": "Devices", "es": "Dispositivos"},
+    "nav.models": {"pt": "Modelos", "en": "Templates", "es": "Plantillas"},
+    "nav.runs": {"pt": "Execuções", "en": "Executions", "es": "Ejecuciones"},
+    "nav.approvals": {"pt": "Aprovações", "en": "Approvals", "es": "Aprobaciones"},
+    "nav.schedules": {"pt": "Agendamentos", "en": "Schedules", "es": "Programaciones"},
+    "nav.audit": {"pt": "Auditoria", "en": "Audit", "es": "Auditoría"},
+    "nav.users": {"pt": "Usuários", "en": "Users", "es": "Usuarios"},
+    "nav.settings": {"pt": "Configurações", "en": "Settings", "es": "Configuración"},
+    "nav.account": {"pt": "conta", "en": "account", "es": "cuenta"},
+    "nav.logout": {"pt": "sair", "en": "sign out", "es": "salir"},
+
+    # --- login ---
+    "login.user": {"pt": "Usuário", "en": "Username", "es": "Usuario"},
+    "login.password": {"pt": "Senha", "en": "Password", "es": "Contraseña"},
+    "login.submit": {"pt": "Entrar", "en": "Sign in", "es": "Entrar"},
+    "login.tagline": {
+        "pt": "disparo de comandos em lote (Netmiko)",
+        "en": "bulk command push (Netmiko)",
+        "es": "envío de comandos en lote (Netmiko)",
+    },
+
+    # --- conta ---
+    "account.title": {"pt": "Minha conta", "en": "My account", "es": "Mi cuenta"},
+    "account.user": {"pt": "Usuário", "en": "User", "es": "Usuario"},
+    "account.current": {"pt": "Senha atual", "en": "Current password", "es": "Contraseña actual"},
+    "account.new": {"pt": "Nova senha", "en": "New password", "es": "Nueva contraseña"},
+    "account.new2": {"pt": "Repita a nova senha", "en": "Repeat new password", "es": "Repita la nueva contraseña"},
+    "account.change": {"pt": "Alterar senha", "en": "Change password", "es": "Cambiar contraseña"},
+    "account.theme": {"pt": "Tema", "en": "Theme", "es": "Tema"},
+    "account.dark": {"pt": "Escuro", "en": "Dark", "es": "Oscuro"},
+    "account.light": {"pt": "Claro", "en": "Light", "es": "Claro"},
+    "account.auto": {"pt": "Automático (segue o sistema)", "en": "Automatic (follow system)", "es": "Automático (sigue el sistema)"},
+    "account.save_theme": {"pt": "Salvar tema", "en": "Save theme", "es": "Guardar tema"},
+    "account.language": {"pt": "Idioma", "en": "Language", "es": "Idioma"},
+    "account.save_language": {"pt": "Salvar idioma", "en": "Save language", "es": "Guardar idioma"},
+
+    # --- dashboard ---
+    "dash.title": {"pt": "Dashboard", "en": "Dashboard", "es": "Panel"},
+    "dash.devices": {"pt": "Devices", "en": "Devices", "es": "Dispositivos"},
+    "dash.models": {"pt": "Modelos", "en": "Templates", "es": "Plantillas"},
+    "dash.pending": {"pt": "Pendentes", "en": "Pending", "es": "Pendientes"},
+    "dash.runs": {"pt": "Execuções", "en": "Executions", "es": "Ejecuciones"},
+    "dash.last_runs": {"pt": "Últimas execuções", "en": "Recent executions", "es": "Últimas ejecuciones"},
+    "dash.next_schedules": {"pt": "Próximos agendamentos", "en": "Upcoming schedules", "es": "Próximas programaciones"},
+    "dash.recent_failures": {"pt": "Falhas recentes", "en": "Recent failures", "es": "Fallos recientes"},
+    "dash.no_runs": {"pt": "Nenhuma execução ainda.", "en": "No executions yet.", "es": "Aún no hay ejecuciones."},
+    "dash.no_schedules": {"pt": "Nenhum agendamento ativo.", "en": "No active schedules.", "es": "Ninguna programación activa."},
+    "dash.no_failures": {"pt": "Nenhuma falha recente.", "en": "No recent failures.", "es": "Ningún fallo reciente."},
+
+    # --- comuns ---
+    "c.model": {"pt": "Modelo", "en": "Template", "es": "Plantilla"},
+    "c.status": {"pt": "Status", "en": "Status", "es": "Estado"},
+    "c.requester": {"pt": "Solicitante", "en": "Requested by", "es": "Solicitante"},
+    "c.created": {"pt": "Criado", "en": "Created", "es": "Creado"},
+    "c.view": {"pt": "ver", "en": "view", "es": "ver"},
+    "c.edit": {"pt": "editar", "en": "edit", "es": "editar"},
+    "c.remove": {"pt": "remover", "en": "remove", "es": "eliminar"},
+    "c.duplicate": {"pt": "duplicar", "en": "duplicate", "es": "duplicar"},
+    "c.name": {"pt": "Nome", "en": "Name", "es": "Nombre"},
+    "c.ip": {"pt": "IP", "en": "IP", "es": "IP"},
+    "c.vendor": {"pt": "Vendor", "en": "Vendor", "es": "Fabricante"},
+    "c.driver": {"pt": "Driver", "en": "Driver", "es": "Driver"},
+    "c.protocol": {"pt": "Protocolo", "en": "Protocol", "es": "Protocolo"},
+    "c.port": {"pt": "Porta", "en": "Port", "es": "Puerto"},
+    "c.username": {"pt": "Usuário", "en": "Username", "es": "Usuario"},
+    "c.tags": {"pt": "Tags", "en": "Tags", "es": "Etiquetas"},
+    "c.active": {"pt": "Ativo", "en": "Active", "es": "Activo"},
+    "c.yes": {"pt": "sim", "en": "yes", "es": "sí"},
+    "c.no": {"pt": "não", "en": "no", "es": "no"},
+    "c.save": {"pt": "Salvar", "en": "Save", "es": "Guardar"},
+    "c.cancel": {"pt": "Cancelar", "en": "Cancel", "es": "Cancelar"},
+    "c.search": {"pt": "Buscar", "en": "Search", "es": "Buscar"},
+    "c.clear": {"pt": "Limpar", "en": "Clear", "es": "Limpiar"},
+    "c.actions": {"pt": "Ações", "en": "Actions", "es": "Acciones"},
+    "c.prev": {"pt": "« anterior", "en": "« previous", "es": "« anterior"},
+    "c.next": {"pt": "próxima »", "en": "next »", "es": "siguiente »"},
+    "c.page_info": {"pt": "página {p} de {n}", "en": "page {p} of {n}", "es": "página {p} de {n}"},
+    "c.devices_count": {"pt": "{n} device(s)", "en": "{n} device(s)", "es": "{n} dispositivo(s)"},
+    "c.records_count": {"pt": "{n} registro(s)", "en": "{n} record(s)", "es": "{n} registro(s)"},
+    "c.runs_count": {"pt": "{n} execução(ões)", "en": "{n} execution(s)", "es": "{n} ejecución(es)"},
+    "c.snippets_count": {"pt": "{n} modelo(s)", "en": "{n} template(s)", "es": "{n} plantilla(s)"},
+
+    # --- devices ---
+    "dev.title": {"pt": "Devices", "en": "Devices", "es": "Dispositivos"},
+    "dev.download_template": {"pt": "Baixar modelo .xlsx", "en": "Download .xlsx template", "es": "Descargar plantilla .xlsx"},
+    "dev.new": {"pt": "Novo device", "en": "New device", "es": "Nuevo dispositivo"},
+    "dev.import_label": {
+        "pt": "Importar .xlsx ou CSV (export do LibreNMS) — colunas: Hostname/Nome, IP, OS/Vendor, Modelo, Usuário, Senha, Protocolo, Porta",
+        "en": "Import .xlsx or CSV (LibreNMS export) — columns: Hostname/Name, IP, OS/Vendor, Model, Username, Password, Protocol, Port",
+        "es": "Importar .xlsx o CSV (exportación de LibreNMS) — columnas: Hostname/Nombre, IP, OS/Fabricante, Modelo, Usuario, Contraseña, Protocolo, Puerto",
+    },
+    "dev.preview_import": {"pt": "Pré-visualizar import", "en": "Preview import", "es": "Previsualizar importación"},
+    "dev.search_label": {"pt": "Buscar (nome, IP ou tag)", "en": "Search (name, IP or tag)", "es": "Buscar (nombre, IP o etiqueta)"},
+    "dev.empty": {"pt": "Nenhum device cadastrado.", "en": "No devices registered.", "es": "Ningún dispositivo registrado."},
+    "bulk.title": {"pt": "Edição em massa", "en": "Bulk edit", "es": "Edición masiva"},
+    "bulk.hint": {"pt": "Aplica os campos abaixo a todos os devices do escopo. Campos em branco não são alterados.", "en": "Applies the fields below to all devices in scope. Blank fields are not changed.", "es": "Aplica los campos de abajo a todos los dispositivos del alcance. Los campos vacíos no se modifican."},
+    "bulk.scope_vendor": {"pt": "Vendor (escopo)", "en": "Vendor (scope)", "es": "Fabricante (alcance)"},
+    "bulk.scope_q": {"pt": "Busca (escopo: nome/IP/tag)", "en": "Search (scope: name/IP/tag)", "es": "Búsqueda (alcance: nombre/IP/etiqueta)"},
+    "bulk.any": {"pt": "(qualquer)", "en": "(any)", "es": "(cualquiera)"},
+    "bulk.keep": {"pt": "deixe vazio = manter", "en": "leave blank = keep", "es": "dejar vacío = mantener"},
+    "bulk.apply": {"pt": "Aplicar em massa", "en": "Apply in bulk", "es": "Aplicar en masa"},
+    "msg.bulk_need_scope": {"pt": "informe um filtro de escopo (vendor ou busca)", "en": "provide a scope filter (vendor or search)", "es": "indique un filtro de alcance (fabricante o búsqueda)"},
+    "msg.bulk_need_field": {"pt": "informe ao menos um campo para alterar", "en": "provide at least one field to change", "es": "indique al menos un campo para modificar"},
+    "msg.bulk_ok": {"pt": "{n} device(s) atualizado(s).", "en": "{n} device(s) updated.", "es": "{n} dispositivo(s) actualizado(s)."},
+
+    # --- device form ---
+    "df.title_new": {"pt": "Novo device", "en": "New device", "es": "Nuevo dispositivo"},
+    "df.title_edit": {"pt": "Editar device", "en": "Edit device", "es": "Editar dispositivo"},
+    "df.name": {"pt": "Nome", "en": "Name", "es": "Nombre"},
+    "df.ip": {"pt": "IP", "en": "IP", "es": "IP"},
+    "df.vendor": {"pt": "Vendor", "en": "Vendor", "es": "Fabricante"},
+    "df.model": {"pt": "Modelo / plataforma", "en": "Model / platform", "es": "Modelo / plataforma"},
+    "df.driver": {"pt": "Driver Netmiko (automático — avançado)", "en": "Netmiko driver (automatic — advanced)", "es": "Driver Netmiko (automático — avanzado)"},
+    "df.protocol": {"pt": "Protocolo", "en": "Protocol", "es": "Protocolo"},
+    "df.port": {"pt": "Porta", "en": "Port", "es": "Puerto"},
+    "df.username": {"pt": "Usuário", "en": "Username", "es": "Usuario"},
+    "df.password": {"pt": "Senha", "en": "Password", "es": "Contraseña"},
+    "df.password_keep": {"pt": "(deixe vazio p/ manter)", "en": "(leave blank to keep)", "es": "(dejar vacío para mantener)"},
+    "df.enable": {"pt": "Senha de enable (opcional — HP/3Com system-view, Cisco enable)", "en": "Enable password (optional — HP/3Com system-view, Cisco enable)", "es": "Contraseña de enable (opcional — HP/3Com system-view, Cisco enable)"},
+    "df.tags": {"pt": "Tags (vírgula)", "en": "Tags (comma)", "es": "Etiquetas (coma)"},
+    "df.enabled": {"pt": "Ativo", "en": "Active", "es": "Activo"},
+    "df.test": {"pt": "Testar conexão", "en": "Test connection", "es": "Probar conexión"},
+
+    # --- import preview ---
+    "imp.title": {"pt": "Pré-visualização do import", "en": "Import preview", "es": "Previsualización de la importación"},
+    "imp.lines": {"pt": "linha(s) válida(s)", "en": "valid row(s)", "es": "fila(s) válida(s)"},
+    "imp.created_upd": {"pt": "novo(s) e", "en": "new and", "es": "nuevo(s) y"},
+    "imp.to_update": {"pt": "a atualizar (por IP).", "en": "to update (by IP).", "es": "a actualizar (por IP)."},
+    "imp.conflicts": {"pt": "conflito(s) de nome.", "en": "name conflict(s).", "es": "conflicto(s) de nombre."},
+    "imp.nothing_saved": {"pt": "Nada foi gravado ainda.", "en": "Nothing saved yet.", "es": "Nada se ha guardado aún."},
+    "imp.ignored": {"pt": "Linhas ignoradas", "en": "Ignored rows", "es": "Filas ignoradas"},
+    "imp.test_all": {"pt": "Testar conexão de todos", "en": "Test connection for all", "es": "Probar conexión de todos"},
+    "imp.test_hint": {"pt": "Usa a credencial global quando a linha não tiver usuário/senha.", "en": "Uses the global credential when the row has no username/password.", "es": "Usa la credencial global cuando la fila no tiene usuario/contraseña."},
+    "imp.action": {"pt": "Ação", "en": "Action", "es": "Acción"},
+    "imp.connection": {"pt": "Conexão", "en": "Connection", "es": "Conexión"},
+    "imp.create": {"pt": "criar", "en": "create", "es": "crear"},
+    "imp.update": {"pt": "atualizar", "en": "update", "es": "actualizar"},
+    "imp.conflict": {"pt": "conflito", "en": "conflict", "es": "conflicto"},
+    "imp.confirm": {"pt": "Confirmar importação", "en": "Confirm import", "es": "Confirmar importación"},
+    "imp.none": {"pt": "Nenhuma linha válida.", "en": "No valid rows.", "es": "Ninguna fila válida."},
+
+    # --- modelos ---
+    "mod.title": {"pt": "Modelos (blocos de comando)", "en": "Templates (command sets)", "es": "Plantillas (bloques de comandos)"},
+    "mod.new": {"pt": "Novo modelo", "en": "New template", "es": "Nueva plantilla"},
+    "mod.hint": {"pt": "Escreva os comandos como no console. Suporta", "en": "Write commands as in the console. Supports", "es": "Escriba los comandos como en la consola. Soporta"},
+    "mod.between": {"pt": "entre blocos.", "en": "between blocks.", "es": "entre bloques."},
+    "mod.search_label": {"pt": "Buscar (nome/descrição)", "en": "Search (name/description)", "es": "Buscar (nombre/descripción)"},
+    "mod.empty": {"pt": "Nenhum modelo.", "en": "No templates.", "es": "Ninguna plantilla."},
+    "mod.th_desc": {"pt": "Descrição", "en": "Description", "es": "Descripción"},
+    "mod.th_drivers": {"pt": "Drivers", "en": "Drivers", "es": "Drivers"},
+    "mod.th_created_by": {"pt": "Criado por", "en": "Created by", "es": "Creado por"},
+    "mod.any": {"pt": "qualquer", "en": "any", "es": "cualquiera"},
+
+    # --- modelo form ---
+    "mf.title_new": {"pt": "Novo modelo", "en": "New template", "es": "Nueva plantilla"},
+    "mf.title_edit": {"pt": "Editar modelo", "en": "Edit template", "es": "Editar plantilla"},
+    "mf.name": {"pt": "Nome", "en": "Name", "es": "Nombre"},
+    "mf.desc": {"pt": "Descrição", "en": "Description", "es": "Descripción"},
+    "mf.commands": {"pt": "Comandos", "en": "Commands", "es": "Comandos"},
+    "mf.drivers_label": {"pt": "Aplicar somente a estes drivers (deixe vazio = serve para qualquer)", "en": "Apply only to these drivers (leave empty = any)", "es": "Aplicar solo a estos drivers (vacío = cualquiera)"},
+    "mf.tip": {"pt": "Dica: com drivers marcados, a execução aplica este modelo só nos devices desse OS (auto por driver).", "en": "Tip: with drivers selected, the execution applies this template only to devices with that OS (auto by driver).", "es": "Consejo: con drivers marcados, la ejecución aplica esta plantilla solo a los dispositivos de ese OS (auto por driver)."},
+
+    # --- execucoes ---
+    "run.title": {"pt": "Execuções", "en": "Executions", "es": "Ejecuciones"},
+    "run.new": {"pt": "Nova execução", "en": "New execution", "es": "Nueva ejecución"},
+    "run.all_status": {"pt": "-- todos --", "en": "-- all --", "es": "-- todos --"},
+    "run.empty": {"pt": "Nenhuma execução.", "en": "No executions.", "es": "Ninguna ejecución."},
+    "run.th_targets": {"pt": "Alvos", "en": "Targets", "es": "Objetivos"},
+    "run.th_mode": {"pt": "Modo", "en": "Mode", "es": "Modo"},
+    "run.simulate": {"pt": "simular", "en": "simulate", "es": "simular"},
+    "run.apply": {"pt": "aplicar", "en": "apply", "es": "aplicar"},
+
+    # --- run form (wizard) ---
+    "rf.title": {"pt": "Nova execução", "en": "New execution", "es": "Nueva ejecución"},
+    "rf.step1": {"pt": "1. O que aplicar", "en": "1. What to apply", "es": "1. Qué aplicar"},
+    "rf.step2": {"pt": "2. Onde aplicar", "en": "2. Where to apply", "es": "2. Dónde aplicar"},
+    "rf.step3": {"pt": "3. Como aplicar", "en": "3. How to apply", "es": "3. Cómo aplicar"},
+    "rf.models": {"pt": "Modelo de comandos", "en": "Command template", "es": "Plantilla de comandos"},
+    "rf.models_hint": {"pt": "Marque um ou mais. Para cada device, o app aplica o modelo cujo driver bate com o OS dele. Se nenhum modelo for marcado, usa os \"comandos avulsos\" abaixo.", "en": "Select one or more. For each device, the app applies the template whose driver matches its OS. If none is selected, the \"raw commands\" below are used.", "es": "Marque uno o más. Para cada dispositivo, la app aplica la plantilla cuyo driver coincide con su OS. Si no marca ninguna, usa los \"comandos sueltos\" de abajo."},
+    "rf.no_models": {"pt": "Nenhum modelo cadastrado.", "en": "No templates registered.", "es": "Ninguna plantilla registrada."},
+    "rf.commands": {"pt": "Comandos avulsos (usados se nenhum modelo for marcado)", "en": "Raw commands (used if no template is selected)", "es": "Comandos sueltos (usados si no se marca ninguna plantilla)"},
+    "rf.devices": {"pt": "Devices", "en": "Devices", "es": "Dispositivos"},
+    "rf.all_vendors": {"pt": "Todos os vendors", "en": "All vendors", "es": "Todos los fabricantes"},
+    "rf.all_tags": {"pt": "Todas as tags", "en": "All tags", "es": "Todas las etiquetas"},
+    "rf.filter_placeholder": {"pt": "filtrar por nome/IP/tag...", "en": "filter by name/IP/tag...", "es": "filtrar por nombre/IP/etiqueta..."},
+    "rf.select_filtered": {"pt": "Selecionar filtrados", "en": "Select filtered", "es": "Seleccionar filtrados"},
+    "rf.clear_selection": {"pt": "Limpar seleção", "en": "Clear selection", "es": "Limpiar selección"},
+    "rf.no_devices": {"pt": "Nenhum device ativo cadastrado.", "en": "No active devices registered.", "es": "Ningún dispositivo activo registrado."},
+    "rf.next_where": {"pt": "Próximo: onde aplicar", "en": "Next: where to apply", "es": "Siguiente: dónde aplicar"},
+    "rf.next_how": {"pt": "Próximo: como aplicar", "en": "Next: how to apply", "es": "Siguiente: cómo aplicar"},
+    "rf.back": {"pt": "Voltar", "en": "Back", "es": "Volver"},
+    "rf.how": {"pt": "Como aplicar", "en": "How to apply", "es": "Cómo aplicar"},
+    "rf.simulate": {"pt": "Apenas simular (não aplica — mostra o que seria feito)", "en": "Only simulate (no changes — shows what would be done)", "es": "Solo simular (no aplica — muestra lo que se haría)"},
+    "rf.apply": {"pt": "Aplicar de verdade nos equipamentos", "en": "Apply for real on the devices", "es": "Aplicar de verdad en los equipos"},
+    "rf.advanced": {"pt": "Avançado", "en": "Advanced", "es": "Avanzado"},
+    "rf.capture_diff": {"pt": "Capturar/validar configuração (diff antes/depois; na simulação, conecta e mostra a config atual)", "en": "Capture/validate configuration (before/after diff; in simulation, connects and shows the current config)", "es": "Capturar/validar configuración (diff antes/después; en la simulación, conecta y muestra la config actual)"},
+    "rf.approval_note": {"pt": "Regras de aprovação e limite de conexões são definidos pelo administrador.", "en": "Approval rules and connection limits are defined by the administrator.", "es": "Las reglas de aprobación y el límite de conexiones son definidos por el administrador."},
+    "rf.create": {"pt": "Criar execução", "en": "Create execution", "es": "Crear ejecución"},
+
+    # --- run detail ---
+    "rd.execution": {"pt": "Execução", "en": "Execution", "es": "Ejecución"},
+    "rd.mode": {"pt": "Modo", "en": "Mode", "es": "Modo"},
+    "rd.simulation": {"pt": "simulação", "en": "simulation", "es": "simulación"},
+    "rd.application": {"pt": "aplicação", "en": "application", "es": "aplicación"},
+    "rd.capture_diff": {"pt": "Capturar diff", "en": "Capture diff", "es": "Capturar diff"},
+    "rd.approver": {"pt": "Aprovador", "en": "Approver", "es": "Aprobador"},
+    "rd.approve": {"pt": "Aprovar e executar", "en": "Approve and execute", "es": "Aprobar y ejecutar"},
+    "rd.reject": {"pt": "Rejeitar", "en": "Reject", "es": "Rechazar"},
+    "rd.reason": {"pt": "motivo (opcional)", "en": "reason (optional)", "es": "motivo (opcional)"},
+    "rd.cancel": {"pt": "Cancelar execução", "en": "Cancel execution", "es": "Cancelar ejecución"},
+    "rd.retry_failed": {"pt": "Reexecutar alvos com falha", "en": "Retry failed targets", "es": "Reejecutar objetivos fallidos"},
+    "rd.rerun_all": {"pt": "Reexecutar tudo", "en": "Rerun all", "es": "Reejecutar todo"},
+    "rd.rerun_hint": {"pt": "\"com falha\" roda só os que falharam; \"tudo\" roda todos de novo.", "en": "\"failed\" runs only the failed ones; \"all\" runs everyone again.", "es": "\"fallidos\" ejecuta solo los fallidos; \"todo\" ejecuta todos de nuevo."},
+    "rd.export": {"pt": "Exportar CSV", "en": "Export CSV", "es": "Exportar CSV"},
+    "rd.commands": {"pt": "Comandos", "en": "Commands", "es": "Comandos"},
+    "rd.devices": {"pt": "Dispositivos", "en": "Devices", "es": "Dispositivos"},
+    "rd.output": {"pt": "saída", "en": "output", "es": "salida"},
+    "rd.diff": {"pt": "diff", "en": "diff", "es": "diff"},
+    "rd.no_diff": {"pt": "(sem diff)", "en": "(no diff)", "es": "(sin diff)"},
+
+    # --- aprovacoes ---
+    "apr.title": {"pt": "Aprovações pendentes", "en": "Pending approvals", "es": "Aprobaciones pendientes"},
+    "apr.empty": {"pt": "Nada pendente.", "en": "Nothing pending.", "es": "Nada pendiente."},
+    "apr.approve": {"pt": "aprovar", "en": "approve", "es": "aprobar"},
+    "apr.approve_all": {"pt": "Aprovar todas", "en": "Approve all", "es": "Aprobar todas"},
+
+    # --- agendamentos ---
+    "sch.title": {"pt": "Agendamentos", "en": "Schedules", "es": "Programaciones"},
+    "sch.new": {"pt": "Novo agendamento", "en": "New schedule", "es": "Nueva programación"},
+    "sch.th_mode": {"pt": "Modo", "en": "Mode", "es": "Modo"},
+    "sch.th_next": {"pt": "Próximo", "en": "Next", "es": "Próximo"},
+    "sch.th_enabled": {"pt": "Ativo", "en": "Active", "es": "Activo"},
+    "sch.empty": {"pt": "Nenhum agendamento.", "en": "No schedules.", "es": "Ninguna programación."},
+
+    # --- agendamento form ---
+    "sf.title_new": {"pt": "Novo agendamento", "en": "New schedule", "es": "Nueva programación"},
+    "sf.title_edit": {"pt": "Editar agendamento", "en": "Edit schedule", "es": "Editar programación"},
+    "sf.name": {"pt": "Nome", "en": "Name", "es": "Nombre"},
+    "sf.model": {"pt": "Modelo", "en": "Template", "es": "Plantilla"},
+    "sf.use_commands": {"pt": "(usar comandos avulsos)", "en": "(use raw commands)", "es": "(usar comandos sueltos)"},
+    "sf.commands": {"pt": "Comandos (se não usar modelo)", "en": "Commands (if not using a template)", "es": "Comandos (si no usa plantilla)"},
+    "sf.mode": {"pt": "Modo", "en": "Mode", "es": "Modo"},
+    "sf.dry_run": {"pt": "Simular (não aplica)", "en": "Simulate (no changes)", "es": "Simular (no aplica)"},
+    "sf.require_approval": {"pt": "Exigir aprovação", "en": "Require approval", "es": "Requerir aprobación"},
+    "sf.enabled": {"pt": "Ativo", "en": "Active", "es": "Activo"},
+    "sf.devices": {"pt": "Devices", "en": "Devices", "es": "Dispositivos"},
+    "sf.save": {"pt": "Salvar agendamento", "en": "Save schedule", "es": "Guardar programación"},
+    "sf.cron_label": {"pt": "Cron (ex.: 0 3 * * *)", "en": "Cron (e.g. 0 3 * * *)", "es": "Cron (ej.: 0 3 * * *)"},
+    "sf.run_at_label": {"pt": "Data/hora (para \"once\")", "en": "Date/time (for \"once\")", "es": "Fecha/hora (para \"once\")"},
+    "sf.mode_cron": {"pt": "cron (recorrente)", "en": "cron (recurring)", "es": "cron (recurrente)"},
+    "sf.mode_once": {"pt": "once (uma vez)", "en": "once (one time)", "es": "once (una vez)"},
+    "sch.th_expr": {"pt": "Expressão", "en": "Expression", "es": "Expresión"},
+    "c.pause": {"pt": "pausar", "en": "pause", "es": "pausar"},
+    "c.activate": {"pt": "ativar", "en": "activate", "es": "activar"},
+
+    # --- auditoria ---
+    "aud.title": {"pt": "Auditoria", "en": "Audit", "es": "Auditoría"},
+    "aud.user": {"pt": "Usuário", "en": "User", "es": "Usuario"},
+    "aud.action": {"pt": "Ação", "en": "Action", "es": "Acción"},
+    "aud.from": {"pt": "De (AAAA-MM-DD)", "en": "From (YYYY-MM-DD)", "es": "Desde (AAAA-MM-DD)"},
+    "aud.to": {"pt": "Até (AAAA-MM-DD)", "en": "To (YYYY-MM-DD)", "es": "Hasta (AAAA-MM-DD)"},
+    "aud.export": {"pt": "Exportar CSV", "en": "Export CSV", "es": "Exportar CSV"},
+    "aud.th_when": {"pt": "Quando", "en": "When", "es": "Cuándo"},
+    "aud.th_detail": {"pt": "Detalhe", "en": "Detail", "es": "Detalle"},
+    "aud.empty": {"pt": "Sem registros.", "en": "No records.", "es": "Sin registros."},
+
+    # --- usuarios ---
+    "usr.title": {"pt": "Usuários", "en": "Users", "es": "Usuarios"},
+    "usr.new": {"pt": "Novo usuário", "en": "New user", "es": "Nuevo usuario"},
+    "usr.th_role": {"pt": "Papel", "en": "Role", "es": "Rol"},
+    "usr.empty": {"pt": "Nenhum usuário.", "en": "No users.", "es": "Ningún usuario."},
+    "uf.title_new": {"pt": "Novo usuário", "en": "New user", "es": "Nuevo usuario"},
+    "uf.title_edit": {"pt": "Editar usuário", "en": "Edit user", "es": "Editar usuario"},
+    "uf.role": {"pt": "Papel", "en": "Role", "es": "Rol"},
+    "uf.password": {"pt": "Senha", "en": "Password", "es": "Contraseña"},
+    "uf.password_keep": {"pt": "deixe vazio p/ manter", "en": "leave blank to keep", "es": "dejar vacío para mantener"},
+    "usr.roles_hint": {"pt": "Papéis: admin (tudo), operator (cria/roda), approver (aprova), viewer (só leitura).", "en": "Roles: admin (everything), operator (create/run), approver (approve), viewer (read-only).", "es": "Roles: admin (todo), operator (crea/ejecuta), approver (aprueba), viewer (solo lectura)."},
+
+    # --- configuracoes ---
+    "set.title": {"pt": "Configurações", "en": "Settings", "es": "Configuración"},
+    "set.subtitle": {"pt": "Marca, logos, mensagem de login e credencial padrão dos equipamentos.", "en": "Brand, logos, login message and default device credential.", "es": "Marca, logos, mensaje de login y credencial predeterminada de los equipos."},
+    "set.cred_title": {"pt": "Credencial padrão (TACACS/AAA)", "en": "Default credential (TACACS/AAA)", "es": "Credencial predeterminada (TACACS/AAA)"},
+    "set.cred_hint": {"pt": "Usada por devices que não têm usuário/senha próprios. Fica cifrada em repouso.", "en": "Used by devices without their own username/password. Encrypted at rest.", "es": "Usada por dispositivos sin usuario/contraseña propios. Cifrada en reposo."},
+    "set.default_username": {"pt": "Usuário padrão", "en": "Default username", "es": "Usuario predeterminado"},
+    "set.default_password": {"pt": "Senha padrão", "en": "Default password", "es": "Contraseña predeterminada"},
+    "set.enable_optional": {"pt": "Senha de enable (opcional)", "en": "Enable password (optional)", "es": "Contraseña de enable (opcional)"},
+    "set.already_set": {"pt": "já definida — deixe vazio para manter", "en": "already set — leave blank to keep", "es": "ya definida — dejar vacío para mantener"},
+    "set.not_set": {"pt": "não definida", "en": "not set", "es": "no definida"},
+    "set.clear_password": {"pt": "Remover senha padrão", "en": "Remove default password", "es": "Eliminar contraseña predeterminada"},
+    "set.clear_enable": {"pt": "Remover senha de enable padrão", "en": "Remove default enable password", "es": "Eliminar contraseña de enable predeterminada"},
+    "set.save_cred": {"pt": "Salvar credencial", "en": "Save credential", "es": "Guardar credencial"},
+    "set.notify_title": {"pt": "Notificações", "en": "Notifications", "es": "Notificaciones"},
+    "set.notify_hint": {"pt": "Webhook (Teams/Slack/servidor genérico) chamado quando uma execução termina, ou quando um run é aprovado/rejeitado. Vazio = desligado.", "en": "Webhook (Teams/Slack/generic server) called when an execution finishes, or when a run is approved/rejected. Empty = off.", "es": "Webhook (Teams/Slack/servidor genérico) llamado cuando termina una ejecución, o cuando un run es aprobado/rechazado. Vacío = apagado."},
+    "set.notify_url": {"pt": "URL do webhook", "en": "Webhook URL", "es": "URL del webhook"},
+    "set.save_notify": {"pt": "Salvar webhook", "en": "Save webhook", "es": "Guardar webhook"},
+    "set.texts": {"pt": "Textos", "en": "Texts", "es": "Textos"},
+    "set.brand_login": {"pt": "Nome no login", "en": "Login name", "es": "Nombre en el login"},
+    "set.brand_app": {"pt": "Nome após login (header/rodapé)", "en": "Name after login (header/footer)", "es": "Nombre tras login (header/pie)"},
+    "set.login_message": {"pt": "Mensagem na tela de login (opcional)", "en": "Login screen message (optional)", "es": "Mensaje en la pantalla de login (opcional)"},
+    "set.save_texts": {"pt": "Salvar textos", "en": "Save texts", "es": "Guardar textos"},
+    "set.logo_login": {"pt": "Logo do login", "en": "Login logo", "es": "Logo del login"},
+    "set.logo_header": {"pt": "Logo do header (após login)", "en": "Header logo (after login)", "es": "Logo del header (tras login)"},
+    "set.upload_label": {"pt": "Enviar imagem (PNG/JPG/GIF/WEBP/BMP, até 2MB)", "en": "Upload image (PNG/JPG/GIF/WEBP/BMP, up to 2MB)", "es": "Subir imagen (PNG/JPG/GIF/WEBP/BMP, hasta 2MB)"},
+    "set.upload": {"pt": "Enviar", "en": "Upload", "es": "Subir"},
+    "set.reset_default": {"pt": "Voltar ao padrão", "en": "Reset to default", "es": "Volver al predeterminado"},
+
+    # --- status de execucao/alvo ---
+    "status.pending_approval": {"pt": "Pendente de aprovação", "en": "Pending approval", "es": "Pendiente de aprobación"},
+    "status.approved": {"pt": "Aprovado", "en": "Approved", "es": "Aprobado"},
+    "status.running": {"pt": "Em execução", "en": "Running", "es": "En ejecución"},
+    "status.done": {"pt": "Concluído", "en": "Done", "es": "Completado"},
+    "status.partial": {"pt": "Parcial", "en": "Partial", "es": "Parcial"},
+    "status.failed": {"pt": "Falhou", "en": "Failed", "es": "Falló"},
+    "status.rejected": {"pt": "Rejeitado", "en": "Rejected", "es": "Rechazado"},
+    "status.canceled": {"pt": "Cancelado", "en": "Canceled", "es": "Cancelado"},
+    "status.pending": {"pt": "Pendente", "en": "Pending", "es": "Pendiente"},
+    "status.success": {"pt": "Sucesso", "en": "Success", "es": "Éxito"},
+    "status.skipped": {"pt": "Ignorado", "en": "Skipped", "es": "Omitido"},
+
+    # --- mensagens (rotas) ---
+    "msg.login_invalid": {"pt": "Usuario ou senha invalidos", "en": "Invalid username or password", "es": "Usuario o contraseña inválidos"},
+    "msg.too_many_attempts": {"pt": "Muitas tentativas. Aguarde alguns minutos e tente novamente.", "en": "Too many attempts. Wait a few minutes and try again.", "es": "Demasiados intentos. Espere unos minutos e inténtelo de nuevo."},
+    "msg.password_mismatch": {"pt": "As senhas novas nao conferem", "en": "New passwords do not match", "es": "Las contraseñas nuevas no coinciden"},
+    "msg.password_short": {"pt": "Senha muito curta (min. {n})", "en": "Password too short (min. {n})", "es": "Contraseña demasiado corta (mín. {n})"},
+    "msg.password_current": {"pt": "Senha atual incorreta", "en": "Current password is incorrect", "es": "Contraseña actual incorrecta"},
+    "msg.password_changed": {"pt": "Senha alterada com sucesso", "en": "Password changed successfully", "es": "Contraseña cambiada con éxito"},
+    "msg.select_device": {"pt": "selecione ao menos um device", "en": "select at least one device", "es": "seleccione al menos un dispositivo"},
+    "msg.select_model": {"pt": "selecione um modelo ou informe os comandos", "en": "select a template or enter the commands", "es": "seleccione una plantilla o introduzca los comandos"},
+    "msg.no_model_driver": {"pt": "nenhum device tem modelo para o driver dele (ajuste o modelo/driver)", "en": "no device has a template for its driver (adjust the template/driver)", "es": "ningún dispositivo tiene plantilla para su driver (ajuste la plantilla/driver)"},
+    "msg.model_not_found": {"pt": "modelo nao encontrado", "en": "template not found", "es": "plantilla no encontrada"},
+    "msg.image_too_big": {"pt": "imagem muito grande (max 2MB)", "en": "image too large (max 2MB)", "es": "imagen demasiado grande (máx 2MB)"},
+    "msg.image_invalid": {"pt": "arquivo nao e uma imagem valida (aceito: PNG, JPG, GIF, WEBP, BMP)", "en": "file is not a valid image (accepted: PNG, JPG, GIF, WEBP, BMP)", "es": "el archivo no es una imagen válida (aceptado: PNG, JPG, GIF, WEBP, BMP)"},
+    "msg.device_required": {"pt": "nome e IP sao obrigatorios", "en": "name and IP are required", "es": "nombre e IP son obligatorios"},
+    "msg.protocol_invalid": {"pt": "protocolo invalido (ssh ou telnet)", "en": "invalid protocol (ssh or telnet)", "es": "protocolo inválido (ssh o telnet)"},
+    "msg.port_invalid": {"pt": "porta invalida (1-65535)", "en": "invalid port (1-65535)", "es": "puerto inválido (1-65535)"},
+    "msg.dup_ip": {"pt": "ja existe device com o IP {ip}", "en": "a device with IP {ip} already exists", "es": "ya existe un dispositivo con el IP {ip}"},
+    "msg.dup_name": {"pt": "ja existe device com o nome {name}", "en": "a device named {name} already exists", "es": "ya existe un dispositivo con el nombre {name}"},
+    "msg.import_done": {"pt": "Import: {c} criados, {u} atualizados", "en": "Import: {c} created, {u} updated", "es": "Importación: {c} creados, {u} actualizados"},
+    "msg.import_skipped": {"pt": ", {s} ignorados (conflito)", "en": ", {s} ignored (conflict)", "es": ", {s} ignorados (conflicto)"},
+}
+# fmt: on
+
+
+def t(lang: str, key: str, **kwargs) -> str:
+    entry = T.get(key)
+    if not entry:
+        return key
+    text = entry.get(lang) or entry.get(DEFAULT_LANG) or key
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except (KeyError, IndexError, ValueError):
+            pass
+    return text
+
+
+def translator(lang: str):
+    lang = lang if lang in LANGS else DEFAULT_LANG
+
+    def _t(key: str, **kwargs) -> str:
+        return t(lang, key, **kwargs)
+
+    return _t

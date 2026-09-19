@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('rd.execution') }} #{{ run.id }}</h1>
+  <span class="st st-{{ run.status }}" id="runStatus">{{ t('status.' ~ run.status) }}</span>
+</div>
+<div class="meta">
+  <div><strong>{{ t('c.model') }}:</strong> {{ run.snippet_name }}</div>
+  <div><strong>{{ t('rd.mode') }}:</strong> {{ t('rd.simulation') if run.dry_run else t('rd.application') }}</div>
+  <div><strong>{{ t('rd.capture_diff') }}:</strong> {{ t('c.yes') if run.capture_diff else t('c.no') }}</div>
+  <div><strong>{{ t('c.requester') }}:</strong> {{ run.requested_by }}</div>
+  <div><strong>{{ t('rd.approver') }}:</strong> {{ run.approved_by or '-' }}</div>
+</div>
+<p class="muted" id="runCounts" data-targets="{{ t('run.th_targets') }}">
+  {{ targets|length }} {{ t('run.th_targets') }}:
+  {% for k, v in counts.items() %}{{ t('status.' ~ k) }}={{ v }}{% if not loop.last %} · {% endif %}{% endfor %}
+</p>
+
+{% if run.status == 'pending_approval' and user.role in ['admin','approver'] %}
+<div class="card">
+  <form class="row" method="post" action="/runs/{{ run.id }}/approve" style="display:inline">
+    <button class="btn primary" type="submit">{{ t('rd.approve') }}</button>
+  </form>
+  <form class="row" method="post" action="/runs/{{ run.id }}/reject" style="display:inline">
+    <input name="reason" placeholder="{{ t('rd.reason') }}">
+    <button class="btn danger" type="submit">{{ t('rd.reject') }}</button>
+  </form>
+</div>
+{% endif %}
+
+{% if run.status == 'pending_approval' and user.role in ['admin','operator'] %}
+<div class="card">
+  <form method="post" action="/runs/{{ run.id }}/cancel" style="display:inline">
+    <button class="btn" type="submit">{{ t('rd.cancel') }}</button>
+  </form>
+</div>
+{% endif %}
+
+{% if run.status in ['failed','partial','done','canceled'] and user.role in ['admin','operator'] %}
+<div class="card">
+  <form method="post" action="/runs/{{ run.id }}/retry" style="display:inline">
+    <button class="btn primary" type="submit">{{ t('rd.retry_failed') }}</button>
+  </form>
+  <form method="post" action="/runs/{{ run.id }}/rerun" style="display:inline"
+        onsubmit="return confirm('{{ t('rd.rerun_all') }}?')">
+    <button class="btn" type="submit">{{ t('rd.rerun_all') }}</button>
+  </form>
+  <span class="muted">{{ t('rd.rerun_hint') }}</span>
+</div>
+{% endif %}
+
+<div class="row end">
+  <a class="btn" href="/runs/{{ run.id }}/export.csv">{{ t('rd.export') }}</a>
+</div>
+
+{% if 'por device' not in run.commands %}
+<h2>{{ t('rd.commands') }}</h2>
+<pre class="code">{{ run.commands }}</pre>
+{% endif %}
+
+<h2>{{ t('rd.devices') }}</h2>
+<table id="targets">
+  <thead><tr><th>#</th><th>Device</th><th>{{ t('c.ip') }}</th><th>{{ t('c.model') }}</th><th>{{ t('c.status') }}</th><th>Erro</th><th></th></tr></thead>
+  <tbody>
+  {% for tg in targets %}
+    <tr data-id="{{ tg.id }}">
+      <td>{{ tg.id }}</td>
+      <td>{{ tg.device_name }}</td>
+      <td>{{ tg.device_ip }}</td>
+      <td>{{ tg.snippet_name or run.snippet_name }}</td>
+      <td class="tstatus"><span class="st st-{{ tg.status }}">{{ t('status.' ~ tg.status) }}</span></td>
+      <td class="terror muted">{{ tg.error }}</td>
+      <td class="nowrap">
+        <button class="link" type="button" onclick="toggleOutput({{ tg.id }})">{{ t('rd.output') }}</button>
+        {% if tg.diff or run.capture_diff %}<button class="link" type="button" onclick="toggleDiff({{ tg.id }})">{{ t('rd.diff') }}</button>{% endif %}
+      </td>
+    </tr>
+    <tr class="outputrow" id="out-{{ tg.id }}" style="display:none"><td colspan="7"><pre class="code">{% if tg.commands %}$ {{ tg.snippet_name or run.snippet_name }}:
+{{ tg.commands }}
+
+{% endif %}{{ tg.output }}</pre></td></tr>
+    <tr class="diffrow" id="diff-{{ tg.id }}" style="display:none"><td colspan="7"><pre class="code">{{ tg.diff or t('rd.no_diff') }}</pre></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<script>
+window.RUN_ID = {{ run.id }};
+window.STATUS_LABELS = {
+  pending_approval: {{ t('status.pending_approval')|tojson }},
+  approved: {{ t('status.approved')|tojson }},
+  running: {{ t('status.running')|tojson }},
+  done: {{ t('status.done')|tojson }},
+  partial: {{ t('status.partial')|tojson }},
+  failed: {{ t('status.failed')|tojson }},
+  rejected: {{ t('status.rejected')|tojson }},
+  canceled: {{ t('status.canceled')|tojson }},
+  pending: {{ t('status.pending')|tojson }},
+  success: {{ t('status.success')|tojson }},
+  skipped: {{ t('status.skipped')|tojson }}
+};
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('mf.title_edit') if snippet else t('mf.title_new') }}</h1>
+<form class="card" method="post" action="/snippets/save">
+  <input type="hidden" name="snippet_id" value="{{ snippet.id if snippet else '' }}">
+  <label>{{ t('mf.name') }} *<input name="name" required value="{{ snippet.name if snippet else '' }}"></label>
+  <label>{{ t('mf.desc') }}<input name="description" value="{{ snippet.description if snippet else '' }}"></label>
+  <label>{{ t('mf.commands') }} *
+    <textarea name="body" rows="14" required spellcheck="false">{{ snippet.body if snippet else 'conf t\n! seus comandos aqui\nexit\nwr mem' }}</textarea>
+  </label>
+  <label>{{ t('mf.drivers_label') }}
+    <select name="drivers" multiple size="9">
+      {% set sel = (snippet.drivers or '').split(',') if snippet else [] %}
+      {% for d, label in drivers %}
+      <option value="{{ d }}" {{ 'selected' if d in sel }}>{{ label }} ({{ d }})</option>
+      {% endfor %}
+    </select>
+  </label>
+  <p class="muted">{{ t('mf.tip') }}</p>
+  <div class="row end">
+    <a class="btn" href="/snippets">{{ t('c.cancel') }}</a>
+    <button class="btn primary" type="submit">{{ t('c.save') }}</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.brand_login }}{% endblock %}
+{% block content %}
+<div class="card narrow center">
+  <img src="{{ cfg.logo_login_url }}" alt="{{ cfg.brand_login }}" class="logo-xl">
+  <h1 class="brand-login">{{ cfg.brand_login }}</h1>
+  {% if cfg.login_message %}<p class="muted">{{ cfg.login_message }}</p>{% endif %}
+  <p class="muted">{{ app_name }} · {{ t('login.tagline') }}</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/login" class="left">
+    <label>{{ t('login.user') }}<input name="username" autofocus required></label>
+    <label>{{ t('login.password') }}<input type="password" name="password" required></label>
+    <button class="btn primary full" type="submit">{{ t('login.submit') }}</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="{{ lang }}" data-theme="{{ theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ cfg.brand_app }}{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+  <link rel="stylesheet" href="/static/app.css?v={{ static_v }}">
+</head>
+<body>
+{% if user %}
+<header class="topbar">
+  <div class="brand">
+    <img src="{{ cfg.logo_header_url }}" alt="{{ cfg.brand_app }}" class="logo-head">
+  </div>
+  <nav>
+    <a href="/">{{ t('nav.dashboard') }}</a>
+    <a href="/devices">{{ t('nav.devices') }}</a>
+    <a href="/snippets">{{ t('nav.models') }}</a>
+    <a href="/runs">{{ t('nav.runs') }}</a>
+    <a href="/approvals">{{ t('nav.approvals') }}</a>
+    <a href="/schedules">{{ t('nav.schedules') }}</a>
+    <a href="/audit">{{ t('nav.audit') }}</a>
+    {% if user.role == 'admin' %}
+    <a href="/users">{{ t('nav.users') }}</a>
+    <a href="/settings">{{ t('nav.settings') }}</a>
+    {% endif %}
+  </nav>
+  <div class="who">
+    {{ user.name }} <span class="badge">{{ user.role }}</span> ·
+    <a href="/account">{{ t('nav.account') }}</a> · <a href="/logout">{{ t('nav.logout') }}</a>
+  </div>
+</header>
+{% endif %}
+<main class="container">
+{% block content %}{% endblock %}
+</main>
+<footer class="foot">{{ cfg.brand_app }}</footer>
+<script src="/static/app.js?v={{ static_v }}"></script>
+</body>
+</html>

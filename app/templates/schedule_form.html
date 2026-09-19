@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('sf.title_edit') if schedule else t('sf.title_new') }}</h1>
+<form class="card" method="post" action="/schedules/save">
+  <input type="hidden" name="schedule_id" value="{{ schedule.id if schedule else '' }}">
+  <div class="grid2">
+    <label>{{ t('sf.name') }} *<input name="name" required value="{{ schedule.name if schedule else '' }}"></label>
+    <label>{{ t('sf.model') }}
+      <select name="snippet_id">
+        <option value="">{{ t('sf.use_commands') }}</option>
+        {% for s in snippets %}
+        <option value="{{ s.id }}" {{ 'selected' if schedule and schedule.snippet_id == s.id }}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <label>{{ t('sf.commands') }}<textarea name="commands" rows="8" spellcheck="false">{{ schedule.commands if schedule else '' }}</textarea></label>
+  <div class="grid2">
+    <label>{{ t('sf.mode') }}
+      {% set m = schedule.mode if schedule else 'cron' %}
+      <select name="mode">
+        <option value="cron" {{ 'selected' if m == 'cron' }}>{{ t('sf.mode_cron') }}</option>
+        <option value="once" {{ 'selected' if m == 'once' }}>{{ t('sf.mode_once') }}</option>
+      </select>
+    </label>
+    <label>{{ t('sf.cron_label') }}
+      <input name="cron" value="{{ schedule.cron if schedule else '' }}" placeholder="0 3 * * *">
+    </label>
+    <label>{{ t('sf.run_at_label') }}
+      <input type="datetime-local" name="run_at"
+        value="{{ schedule.run_at.strftime('%Y-%m-%dT%H:%M') if schedule and schedule.run_at else '' }}">
+    </label>
+  </div>
+  <label class="chk"><input type="checkbox" name="dry_run" value="1" {{ 'checked' if schedule and schedule.dry_run }}> {{ t('sf.dry_run') }}</label>
+  <label class="chk"><input type="checkbox" name="require_approval" value="1"
+    {{ 'checked' if (schedule.require_approval if schedule else true) }}> {{ t('sf.require_approval') }}</label>
+  <label class="chk"><input type="checkbox" name="enabled" value="1"
+    {{ 'checked' if (schedule.enabled if schedule else true) }}> {{ t('sf.enabled') }}</label>
+
+  <strong>{{ t('sf.devices') }}</strong>
+  <div class="devlist">
+    {% set sel = selected if selected is defined else [] %}
+    {% for d in devices %}
+    <label class="chk devitem" data-search="{{ (d.name ~ ' ' ~ d.ip ~ ' ' ~ d.tags)|lower }}">
+      <input type="checkbox" name="device_ids" value="{{ d.id }}" {{ 'checked' if d.id in sel }}> {{ d.name }}
+      <span class="muted">{{ d.ip }} · {{ d.vendor }}</span>
+    </label>
+    {% endfor %}
+  </div>
+  <div class="row end">
+    <a class="btn" href="/schedules">{{ t('c.cancel') }}</a>
+    <button class="btn primary" type="submit">{{ t('c.save') }}</button>
+  </div>
+</form>
+{% endblock %}

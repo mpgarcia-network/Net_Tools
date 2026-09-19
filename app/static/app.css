@@ -1,0 +1,122 @@
+:root {
+  --bg: #0f1420;
+  --panel: #171d2b;
+  --border: #263149;
+  --text: #e6ebf5;
+  --muted: #8b97ad;
+  --primary: #2f7df6;
+  --ok: #2ecc71;
+  --warn: #f1c40f;
+  --danger: #e74c3c;
+  --input-bg: #0d1220;
+  --btn-bg: #1f2941;
+  --code-bg: #0b0f1a;
+  --chip-bg: #22304a;
+  --link: #7db2ff;
+  --link-danger: #ff8a80;
+  --link-ok: #8ef0b0;
+}
+:root[data-theme="light"] {
+  --bg: #f4f6fb;
+  --panel: #ffffff;
+  --border: #d5ddec;
+  --text: #1b2333;
+  --muted: #5b6b86;
+  --primary: #1f6feb;
+  --ok: #1a9f55;
+  --warn: #a8790a;
+  --danger: #d62d20;
+  --input-bg: #ffffff;
+  --btn-bg: #eef2fa;
+  --code-bg: #f3f6fc;
+  --chip-bg: #e7edf7;
+  --link: #1f6feb;
+  --link-danger: #c0392b;
+  --link-ok: #1a9f55;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] {
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --border: #d5ddec;
+    --text: #1b2333;
+    --muted: #5b6b86;
+    --primary: #1f6feb;
+    --ok: #1a9f55;
+    --warn: #a8790a;
+    --danger: #d62d20;
+    --input-bg: #ffffff;
+    --btn-bg: #eef2fa;
+    --code-bg: #f3f6fc;
+    --chip-bg: #e7edf7;
+    --link: #1f6feb;
+    --link-danger: #c0392b;
+    --link-ok: #1a9f55;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.topbar { display: flex; align-items: center; gap: 24px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+.brand { font-weight: 700; display: flex; align-items: center; gap: 9px; }
+.logo-head { height: 40px; width: auto; display: block; }
+.logo { height: 34px; width: auto; display: block; }
+.logo-xl { max-width: 340px; max-height: 130px; width: auto; height: auto; display: block; margin: 6px auto 12px; }
+.center { text-align: center; }
+.brand-login { font-size: 20px; line-height: 1.25; margin: 0 0 4px; }
+.card.narrow h1 { margin: 0 0 4px; }
+.left { text-align: left; }
+.btn.full { width: 100%; margin-top: 8px; }
+.foot { text-align: center; color: var(--muted); font-size: 12px; padding: 18px 0 30px; }
+.topbar nav { display: flex; gap: 14px; flex-wrap: wrap; }
+.topbar .who { margin-left: auto; color: var(--muted); font-size: 14px; }
+.badge { background: var(--chip-bg); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+.container { max-width: 1150px; margin: 0 auto; padding: 22px 18px 60px; }
+h1 { font-size: 22px; } h2 { font-size: 17px; margin-top: 26px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 14px 0; }
+.card.narrow { max-width: 420px; margin: 60px auto; }
+label { display: block; margin: 10px 0; font-size: 14px; }
+input, select, textarea { width: 100%; margin-top: 5px; padding: 9px 10px; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+textarea, pre.code, code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+textarea { line-height: 1.45; }
+.chk { display: flex; align-items: center; gap: 8px; }
+.chk input { width: auto; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 16px; }
+.stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; text-align: center; color: var(--text); }
+.stat .num { display: block; font-size: 30px; font-weight: 700; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row.between { justify-content: space-between; }
+.row.end { justify-content: flex-end; margin-top: 12px; }
+.btn { display: inline-block; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-size: 14px; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.link { background: none; border: none; color: var(--link); cursor: pointer; padding: 0 6px; font-size: 14px; }
+.link.danger { color: var(--link-danger); } .link.ok { color: var(--link-ok); }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); } .error { color: var(--link-danger); } .ok { color: var(--link-ok); }
+.nowrap { white-space: nowrap; }
+pre.code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; max-height: 420px; }
+.logo-preview { max-width: 260px; max-height: 120px; background: var(--code-bg); padding: 8px; border-radius: 8px; }
+.devlist { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin: 8px 0; }
+.devitem { margin: 4px 0; }
+.meta { display: flex; gap: 22px; flex-wrap: wrap; color: var(--text); font-size: 14px; margin: 8px 0 4px; }
+.st { padding: 2px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); background: var(--chip-bg); }
+.st-done, .st-success, .st-approved { color: var(--link-ok); border-color: #275c3c; }
+.st-failed, .st-rejected { color: var(--link-danger); border-color: #6b2a24; }
+.st-running { color: #ffd76a; border-color: #6b5a24; }
+.st-pending, .st-pending_approval { color: var(--link); }
+.st-partial { color: #ffc078; }
+
+/* Wizard da nova execucao */
+.steps { display: flex; gap: 8px; align-items: center; margin: 4px 0 14px; flex-wrap: wrap; }
+.stepdot { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--muted); background: var(--panel); }
+.stepdot.active { color: #fff; background: var(--primary); border-color: var(--primary); }
+.stepdot.done { color: var(--link-ok); border-color: #275c3c; }
+.wizard-step { display: none; }
+.wizard-step.active { display: block; }
+details.adv summary { cursor: pointer; color: var(--muted); margin-top: 8px; }

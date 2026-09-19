@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('sch.title') }}</h1>
+  <a class="btn primary" href="/schedules/new">{{ t('sch.new') }}</a>
+</div>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('sch.th_mode') }}</th><th>{{ t('sch.th_expr') }}</th><th>{{ t('sch.th_next') }}</th><th>{{ t('run.th_mode') }}</th><th>{{ t('sch.th_enabled') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for s in schedules %}
+    <tr>
+      <td>{{ s.id }}</td>
+      <td>{{ s.name }}</td>
+      <td>{{ s.mode }}</td>
+      <td>{{ s.cron if s.mode == 'cron' else (s.run_at.strftime('%d/%m/%Y %H:%M') if s.run_at else '') }}</td>
+      <td>{{ s.next_run_at.strftime('%d/%m %H:%M') if s.next_run_at else '-' }}</td>
+      <td>{{ t('run.simulate') if s.dry_run else t('run.apply') }}</td>
+      <td>{{ t('c.yes') if s.enabled else t('c.no') }}</td>
+      <td class="nowrap">
+        <a href="/schedules/{{ s.id }}/edit">{{ t('c.edit') }}</a>
+        <form method="post" action="/schedules/{{ s.id }}/toggle" style="display:inline">
+          <button class="link" type="submit">{{ t('c.pause') if s.enabled else t('c.activate') }}</button>
+        </form>
+        {% if user.role == 'admin' %}
+        <form method="post" action="/schedules/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('{{ t('c.remove') }} {{ s.name }}?')">
+          <button class="link danger" type="submit">{{ t('c.remove') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="muted">{{ t('sch.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

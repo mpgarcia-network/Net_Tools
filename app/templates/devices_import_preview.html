@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('imp.title') }}</h1>
+<p class="muted">
+  {{ preview|length }} {{ t('imp.lines') }} —
+  <strong>{{ created }}</strong> {{ t('imp.created_upd') }} <strong>{{ updated }}</strong> {{ t('imp.to_update') }}
+  {% if conflicts %}<span class="error">{{ conflicts }} {{ t('imp.conflicts') }}</span>{% endif %}
+  {{ t('imp.nothing_saved') }}
+</p>
+
+{% if errors %}
+<div class="card">
+  <strong>{{ t('imp.ignored') }} ({{ errors|length }}):</strong>
+  <ul>{% for e in errors %}<li class="error">{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if preview %}
+<div class="card">
+  <form method="post" action="/devices/import/test" style="display:inline">
+    <button class="btn" type="submit">{{ t('imp.test_all') }}</button>
+  </form>
+  <span class="muted">{{ t('imp.test_hint') }}</span>
+</div>
+{% endif %}
+
+<table>
+  <thead><tr><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.vendor') }}</th><th>{{ t('df.model') }}</th><th>{{ t('c.driver') }}</th><th>{{ t('c.protocol') }}</th><th>{{ t('c.port') }}</th><th>{{ t('c.username') }}</th><th>{{ t('imp.action') }}</th><th>{{ t('imp.connection') }}</th></tr></thead>
+  <tbody>
+  {% for p in preview %}
+    <tr>
+      <td>{{ p.name }}{% if p.existing and p.current_name != p.name %} <span class="muted">({{ p.current_name }})</span>{% endif %}</td>
+      <td>{{ p.ip }}</td>
+      <td>{{ p.vendor }}</td>
+      <td>{{ p.model }}{% if p.os and p.os != p.model %} <span class="muted">/ {{ p.os }}</span>{% endif %}</td>
+      <td>{{ p.driver or 'autodetect' }}</td>
+      <td>{{ p.protocol }}</td>
+      <td>{{ p.port }}</td>
+      <td>{{ p.username or '(global)' }}</td>
+      <td>
+        {% if p.name_conflict %}
+          <span class="st st-failed">{{ t('imp.conflict') }}</span><br><span class="muted">{{ p.conflict_ip }}</span>
+        {% elif p.existing %}
+          <span class="st st-pending">{{ t('imp.update') }}</span>
+        {% else %}
+          <span class="st st-success">{{ t('imp.create') }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% set r = (results or {}).get(loop.index0) %}
+        {% if r %}
+          {% if r.status == 'success' %}
+            <span class="st st-success">ok</span> <span class="muted">{{ r.driver }}</span>
+          {% else %}
+            <span class="st st-failed">falha</span> <span class="muted">{{ r.error }}</span>
+          {% endif %}
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="10" class="muted">{{ t('imp.none') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="row end">
+  <a class="btn" href="/devices">{{ t('c.cancel') }}</a>
+  {% if preview %}
+  <form method="post" action="/devices/import/confirm">
+    <button class="btn primary" type="submit">{{ t('imp.confirm') }}</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

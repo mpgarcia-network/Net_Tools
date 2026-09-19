@@ -1,0 +1,51 @@
+version: '3.8'
+
+# =============================================================================
+# Net Tools — gestao de configuracao de rede (Netmiko) com push, dry-run,
+# aprovacao, agendamento, auditoria e backup/versionamento. Swarm, 1 replica.
+# A imagem e construida localmente pelo manager-docker.sh.
+# =============================================================================
+
+services:
+  configpush:
+    image: ssu-configpush:local
+    hostname: ssu-configpush
+    ports:
+      - "${APP_PORT:-8090}:8000"
+    environment:
+      - APP_NAME=${APP_NAME:-Net Tools}
+      - BRAND_LOGIN=${BRAND_LOGIN:-}
+      - BRAND_APP=${BRAND_APP:-}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - SESSION_SECRET=${SESSION_SECRET:-}
+      - SESSION_MAX_AGE=${SESSION_MAX_AGE:-43200}
+      - SESSION_HTTPS_ONLY=${SESSION_HTTPS_ONLY:-false}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - REQUIRE_APPROVAL=${REQUIRE_APPROVAL:-true}
+      - TIMEZONE=${TIMEZONE:-America/Sao_Paulo}
+      - NETMIKO_MAX_WORKERS=${NETMIKO_MAX_WORKERS:-10}
+      - NETMIKO_CONN_TIMEOUT=${NETMIKO_CONN_TIMEOUT:-30}
+    volumes:
+      - configpush_data:/data
+    networks:
+      - configpush-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - "node.hostname == ${SWARM_NODE_CONSTRAINT:-vmssuproxy}"
+
+volumes:
+  configpush_data:
+
+networks:
+  configpush-net:
+    external: true  # Criada pelo manager-docker.sh (overlay com subnet dedicada)

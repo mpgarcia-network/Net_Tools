@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('uf.title_edit') if edit_user else t('uf.title_new') }}</h1>
+<form class="card narrow" method="post" action="/users/save">
+  <input type="hidden" name="user_id" value="{{ edit_user.id if edit_user else '' }}">
+  <label>{{ t('c.username') }} *<input name="username" required value="{{ edit_user.username if edit_user else '' }}"></label>
+  <label>{{ t('uf.role') }}
+    <select name="role">
+      {% for r in roles %}
+      <option value="{{ r }}" {{ 'selected' if edit_user and edit_user.role == r }}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>{{ t('uf.password') }} {{ ('(' ~ t('uf.password_keep') ~ ')') if edit_user else '*' }}
+    <input type="password" name="password" autocomplete="new-password" {{ 'required' if not edit_user }}>
+  </label>
+  <label class="chk"><input type="checkbox" name="active" value="1"
+    {{ 'checked' if (edit_user.active if edit_user else true) }}> {{ t('c.active') }}</label>
+  <div class="row end">
+    <a class="btn" href="/users">{{ t('c.cancel') }}</a>
+    <button class="btn primary" type="submit">{{ t('c.save') }}</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('dev.title') }}</h1>
+  <div>
+    <a class="btn" href="/devices/template.xlsx">{{ t('dev.download_template') }}</a>
+    <a class="btn primary" href="/devices/new">{{ t('dev.new') }}</a>
+  </div>
+</div>
+
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+{% if import_errors %}
+<div class="card">
+  <strong>{{ t('imp.ignored') }} ({{ import_errors|length }}):</strong>
+  <ul>{% for e in import_errors %}<li class="error">{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form class="card" method="post" action="/devices/import" enctype="multipart/form-data">
+  <label>{{ t('dev.import_label') }}
+    <input type="file" name="file" accept=".xlsx,.csv" required>
+  </label>
+  <button class="btn" type="submit">{{ t('dev.preview_import') }}</button>
+</form>
+
+<form class="card" method="get" action="/devices">
+  <div class="row">
+    <label style="flex:1">{{ t('dev.search_label') }}<input name="q" value="{{ q }}"></label>
+    <button class="btn primary" type="submit">{{ t('c.search') }}</button>
+    {% if q %}<a class="btn" href="/devices">{{ t('c.clear') }}</a>{% endif %}
+  </div>
+</form>
+
+{% if user.role in ['admin','operator'] %}
+<details class="card">
+  <summary><strong>{{ t('bulk.title') }}</strong></summary>
+  <p class="muted">{{ t('bulk.hint') }}</p>
+  <form method="post" action="/devices/bulk_edit"
+        onsubmit="return confirm('{{ t('bulk.apply') }}?')">
+    <div class="grid2">
+      <label>{{ t('bulk.scope_vendor') }}
+        <select name="vendor">
+          <option value="">{{ t('bulk.any') }}</option>
+          {% for v in vendors %}<option value="{{ v }}">{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>{{ t('bulk.scope_q') }}<input name="q" value="{{ q }}"></label>
+      <label>{{ t('df.port') }}<input type="number" name="port" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('df.protocol') }}
+        <select name="protocol">
+          <option value="">{{ t('bulk.keep') }}</option>
+          <option value="ssh">ssh</option>
+          <option value="telnet">telnet</option>
+        </select>
+      </label>
+      <label>{{ t('c.driver') }}<input name="device_type" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('c.tags') }}<input name="tags" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('df.username') }}<input name="username" autocomplete="off" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('df.password') }}<input type="password" name="password" autocomplete="new-password" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('df.enable') }}<input type="password" name="enable_password" autocomplete="new-password" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('c.active') }}
+        <select name="enabled">
+          <option value="">{{ t('bulk.keep') }}</option>
+          <option value="1">{{ t('c.yes') }}</option>
+          <option value="0">{{ t('c.no') }}</option>
+        </select>
+      </label>
+    </div>
+    <button class="btn danger" type="submit">{{ t('bulk.apply') }}</button>
+  </form>
+</details>
+{% endif %}
+
+<p class="muted">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.vendor') }}</th><th>{{ t('df.model') }}</th><th>{{ t('c.driver') }}</th><th>{{ t('c.protocol') }}</th><th>{{ t('c.port') }}</th><th>{{ t('c.username') }}</th><th>{{ t('c.tags') }}</th><th>{{ t('c.active') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for d in devices %}
+    <tr>
+      <td>{{ d.id }}</td>
+      <td>{{ d.name }}</td>
+      <td>{{ d.ip }}</td>
+      <td>{{ d.vendor }}</td>
+      <td>{{ d.model }}</td>
+      <td>{{ d.device_type }}</td>
+      <td>{{ d.protocol }}</td>
+      <td>{{ d.port }}</td>
+      <td>{{ d.username }}</td>
+      <td>{{ d.tags }}</td>
+      <td>{{ t('c.yes') if d.enabled else t('c.no') }}</td>
+      <td class="nowrap">
+        <a href="/devices/{{ d.id }}/edit">{{ t('c.edit') }}</a>
+        {% if user.role == 'admin' %}
+        <form method="post" action="/devices/{{ d.id }}/delete" onsubmit="return confirm('{{ t('c.remove') }} {{ d.name }}?')">
+          <button class="link danger" type="submit">{{ t('c.remove') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="12" class="muted">{{ t('dev.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if pages > 1 %}
+<div class="row end">
+  {% if page > 1 %}<a class="btn" href="/devices?page={{ page - 1 }}&q={{ q|urlencode }}">{{ t('c.prev') }}</a>{% endif %}
+  {% if page < pages %}<a class="btn" href="/devices?page={{ page + 1 }}&q={{ q|urlencode }}">{{ t('c.next') }}</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('mod.title') }}</h1>
+  <a class="btn primary" href="/snippets/new">{{ t('mod.new') }}</a>
+</div>
+<p class="muted">{{ t('mod.hint') }} <code>#[sleep 30]</code> {{ t('mod.between') }}</p>
+
+<form class="card" method="get" action="/snippets">
+  <div class="row">
+    <label style="flex:1">{{ t('mod.search_label') }}<input name="q" value="{{ q }}"></label>
+    <button class="btn primary" type="submit">{{ t('c.search') }}</button>
+    {% if q %}<a class="btn" href="/snippets">{{ t('c.clear') }}</a>{% endif %}
+  </div>
+</form>
+
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('mod.th_desc') }}</th><th>{{ t('mod.th_drivers') }}</th><th>{{ t('mod.th_created_by') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for s in snippets %}
+    <tr>
+      <td>{{ s.id }}</td>
+      <td>{{ s.name }}</td>
+      <td>{{ s.description }}</td>
+      <td class="muted">{{ s.drivers or t('mod.any') }}</td>
+      <td>{{ s.created_by }}</td>
+      <td class="nowrap">
+        <a href="/snippets/{{ s.id }}/edit">{{ t('c.edit') }}</a>
+        {% if user.role in ['admin','operator'] %}
+        <form method="post" action="/snippets/{{ s.id }}/duplicate" style="display:inline">
+          <button class="link" type="submit">{{ t('c.duplicate') }}</button>
+        </form>
+        {% endif %}
+        {% if user.role == 'admin' %}
+        <form method="post" action="/snippets/{{ s.id }}/delete" style="display:inline" onsubmit="return confirm('{{ t('c.remove') }} {{ s.name }}?')">
+          <button class="link danger" type="submit">{{ t('c.remove') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">{{ t('mod.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

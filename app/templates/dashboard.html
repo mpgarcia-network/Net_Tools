@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('dash.title') }}</h1>
+<div class="grid">
+  <a class="stat" href="/devices"><span class="num">{{ counts.devices }}</span><span>{{ t('dash.devices') }}</span></a>
+  <a class="stat" href="/snippets"><span class="num">{{ counts.snippets }}</span><span>{{ t('dash.models') }}</span></a>
+  <a class="stat" href="/approvals"><span class="num">{{ counts.pending }}</span><span>{{ t('dash.pending') }}</span></a>
+  <a class="stat" href="/runs"><span class="num">{{ counts.runs }}</span><span>{{ t('dash.runs') }}</span></a>
+</div>
+
+<h2>{{ t('dash.last_runs') }}</h2>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.model') }}</th><th>{{ t('c.status') }}</th><th>{{ t('c.requester') }}</th><th>{{ t('c.created') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for r in recent %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.snippet_name }}</td>
+      <td><span class="st st-{{ r.status }}">{{ t('status.' ~ r.status) }}</span></td>
+      <td>{{ r.requested_by }}</td>
+      <td>{{ r.created_at.strftime('%d/%m %H:%M') if r.created_at else '' }}</td>
+      <td><a href="/runs/{{ r.id }}">{{ t('c.view') }}</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">{{ t('dash.no_runs') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="grid2">
+  <div>
+    <h2>{{ t('dash.next_schedules') }}</h2>
+    <table>
+      <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('sch.th_next') }}</th><th></th></tr></thead>
+      <tbody>
+      {% for s in next_schedules %}
+        <tr>
+          <td>{{ s.id }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ s.next_run_at.strftime('%d/%m %H:%M') if s.next_run_at else '-' }}</td>
+          <td><a href="/schedules/{{ s.id }}/edit">{{ t('c.view') }}</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="muted">{{ t('dash.no_schedules') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h2>{{ t('dash.recent_failures') }}</h2>
+    <table>
+      <thead><tr><th>#</th><th>{{ t('c.model') }}</th><th>{{ t('c.status') }}</th><th></th></tr></thead>
+      <tbody>
+      {% for r in recent_failures %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.snippet_name }}</td>
+          <td><span class="st st-{{ r.status }}">{{ t('status.' ~ r.status) }}</span></td>
+          <td><a href="/runs/{{ r.id }}">{{ t('c.view') }}</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="muted">{{ t('dash.no_failures') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

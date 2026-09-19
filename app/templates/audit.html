@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('aud.title') }}</h1>
+  <a class="btn" href="/audit/export.csv?user={{ filters.user|urlencode }}&action={{ filters.action|urlencode }}&date_from={{ filters.date_from|urlencode }}&date_to={{ filters.date_to|urlencode }}">{{ t('aud.export') }}</a>
+</div>
+
+<form class="card" method="get" action="/audit">
+  <div class="grid2">
+    <label>{{ t('aud.user') }}<input name="user" value="{{ filters.user }}"></label>
+    <label>{{ t('aud.action') }}<input name="action" value="{{ filters.action }}"></label>
+    <label>{{ t('aud.from') }}<input name="date_from" value="{{ filters.date_from }}" placeholder="2026-01-01"></label>
+    <label>{{ t('aud.to') }}<input name="date_to" value="{{ filters.date_to }}" placeholder="2026-01-31"></label>
+  </div>
+  <div class="row end">
+    <a class="btn" href="/audit">{{ t('c.clear') }}</a>
+    <button class="btn primary" type="submit">{{ t('c.search') }}</button>
+  </div>
+</form>
+
+<p class="muted">{{ t('c.records_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
+<table>
+  <thead><tr><th>#</th><th>{{ t('aud.th_when') }}</th><th>{{ t('aud.user') }}</th><th>{{ t('aud.action') }}</th><th>{{ t('aud.th_detail') }}</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td>{{ r.created_at.strftime('%d/%m/%Y %H:%M:%S') if r.created_at else '' }}</td>
+      <td>{{ r.user }}</td>
+      <td>{{ r.action }}</td>
+      <td class="muted">{{ r.detail }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">{{ t('aud.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% if pages > 1 %}
+<div class="row end">
+  {% set qs = 'user=' ~ (filters.user|urlencode) ~ '&action=' ~ (filters.action|urlencode) ~ '&date_from=' ~ (filters.date_from|urlencode) ~ '&date_to=' ~ (filters.date_to|urlencode) %}
+  {% if page > 1 %}<a class="btn" href="/audit?page={{ page - 1 }}&{{ qs }}">{{ t('c.prev') }}</a>{% endif %}
+  {% if page < pages %}<a class="btn" href="/audit?page={{ page + 1 }}&{{ qs }}">{{ t('c.next') }}</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

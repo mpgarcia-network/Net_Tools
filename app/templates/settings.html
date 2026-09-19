@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('set.title') }}</h1>
+<p class="muted">{{ t('set.subtitle') }}</p>
+
+<div class="card">
+  <h2>{{ t('set.cred_title') }}</h2>
+  <p class="muted">{{ t('set.cred_hint') }}</p>
+  <form method="post" action="/settings/credentials">
+    <div class="grid2">
+      <label>{{ t('set.default_username') }}<input name="default_username" value="{{ settings.default_username }}" autocomplete="off"></label>
+      <label>{{ t('set.default_password') }}
+        <input type="password" name="default_password" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_default_password else t('set.not_set') }}">
+      </label>
+      <label>{{ t('set.enable_optional') }}
+        <input type="password" name="default_enable_password" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_default_enable else t('set.not_set') }}">
+      </label>
+    </div>
+    <label class="chk"><input type="checkbox" name="clear_password" value="1"> {{ t('set.clear_password') }}</label>
+    <label class="chk"><input type="checkbox" name="clear_enable" value="1"> {{ t('set.clear_enable') }}</label>
+    <button class="btn primary" type="submit">{{ t('set.save_cred') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{ t('set.notify_title') }}</h2>
+  <p class="muted">{{ t('set.notify_hint') }}</p>
+  <form method="post" action="/settings/notify">
+    <label>{{ t('set.notify_url') }}
+      <input name="notify_webhook_url" value="{{ settings.notify_webhook_url }}" placeholder="https://...">
+    </label>
+    <button class="btn primary" type="submit">{{ t('set.save_notify') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{ t('set.texts') }}</h2>
+  <form method="post" action="/settings">
+    <label>{{ t('set.brand_login') }}<input name="brand_login" value="{{ settings.brand_login }}"></label>
+    <label>{{ t('set.brand_app') }}<input name="brand_app" value="{{ settings.brand_app }}"></label>
+    <label>{{ t('set.login_message') }}
+      <textarea name="login_message" rows="3">{{ settings.login_message }}</textarea>
+    </label>
+    <button class="btn primary" type="submit">{{ t('set.save_texts') }}</button>
+  </form>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h2>{{ t('set.logo_login') }}</h2>
+    <img src="{{ cfg.logo_login_url }}" alt="logo login" class="logo-preview">
+    <form method="post" action="/settings/logo/login" enctype="multipart/form-data">
+      <label>{{ t('set.upload_label') }}
+        <input type="file" name="file" accept="image/*" required>
+      </label>
+      <button class="btn" type="submit">{{ t('set.upload') }}</button>
+    </form>
+    {% if settings.logo_login %}
+    <form method="post" action="/settings/logo/login/reset">
+      <button class="link danger" type="submit">{{ t('set.reset_default') }}</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>{{ t('set.logo_header') }}</h2>
+    <img src="{{ cfg.logo_header_url }}" alt="logo header" class="logo-preview">
+    <form method="post" action="/settings/logo/header" enctype="multipart/form-data">
+      <label>{{ t('set.upload_label') }}
+        <input type="file" name="file" accept="image/*" required>
+      </label>
+      <button class="btn" type="submit">{{ t('set.upload') }}</button>
+    </form>
+    {% if settings.logo_header %}
+    <form method="post" action="/settings/logo/header/reset">
+      <button class="link danger" type="submit">{{ t('set.reset_default') }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
