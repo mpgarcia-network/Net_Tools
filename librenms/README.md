@@ -1,7 +1,16 @@
-# LibreNMS (monitoramento/inventário)
+# LibreNMS (integração)
 
-Stack de monitoramento e descoberta via SNMP, com integração de inventário
-para as demais ferramentas (Config Push / rConfig).
+Não mantemos um stack do LibreNMS neste repositório — usamos o **projeto
+oficial**: https://github.com/librenms/librenms (imagem `librenms/librenms`).
 
-> Placeholder — subir aqui o stack padronizado (compose + `manager-docker.sh`
-> + `.env.example`) quando for trabalhar esta ferramenta neste monorepo.
+O **Config Push** se integra ao LibreNMS via **API**, como conector opcional
+(descoberta/inventário):
+
+- Variáveis de ambiente (no `.env` do `config_push`):
+  - `LIBRENMS_URL` — ex.: `http://librenms:8000`
+  - `LIBRENMS_TOKEN` — token de API (X-Auth-Token)
+- Código: `config_push/app/connectors/librenms.py`
+- Uso: importar devices (nome/IP/vendor/modelo/OS) e alimentar o inventário.
+
+> Licença: LibreNMS é um projeto de terceiros (**GPLv3**). Não embutimos nem
+> derivamos o código dele no produto; apenas consumimos a API.

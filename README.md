@@ -7,7 +7,7 @@ cada uma em sua pasta, com deploy Docker Swarm padronizado.
 |---|---|---|
 | **Config Push** | [`config_push/`](config_push/) | Gestão de configuração (push, dry-run/diff, aprovação, agendamento, auditoria, RBAC, backup/versionamento próprio) |
 | **rConfig** | [`rconfig/`](rconfig/) | Coleta e versionamento de configuração (deploy Swarm + patch "keep unchanged" + retenção) |
-| **LibreNMS** | [`librenms/`](librenms/) | Monitoramento/descoberta (SNMP) e inventário |
+| **LibreNMS** | [`librenms/`](librenms/) | Projeto oficial (GPLv3) — usado via API (conector), sem stack próprio |
 
 Cada pasta é **autônoma** (tem seu `docker-compose.yml`, `manager-docker.sh`,
 `.env.example` e `README.md`). Sobe-se só o que o cliente precisa.
@@ -24,6 +24,6 @@ cd <ferramenta>
 ## Licença / dependências de terceiros
 
 - O código deste repositório é proprietário — ver [`LICENSE`](LICENSE).
-- Pastas `rconfig/` e `librenms/` referenciam projetos de terceiros (imagens
-  oficiais). Revise as licenças desses projetos antes de distribuir/comercializar
-  (ver `rconfig/NOTICE.md`).
+- `rconfig/` referencia o projeto rConfig (imagem oficial) e contém um patch
+  derivado — revise a licença antes de distribuir (ver `rconfig/NOTICE.md`).
+- `librenms/` é apenas documentação de integração com o projeto oficial (GPLv3).
