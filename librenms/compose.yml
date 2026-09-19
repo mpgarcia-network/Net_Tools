@@ -1,0 +1,94 @@
+# LibreNMS - baseado no compose oficial (https://github.com/librenms/docker,
+# examples/compose), adaptado: env-driven, sem segredos fixos, imagem oficial.
+name: librenms
+
+services:
+  db:
+    image: mariadb:10
+    container_name: librenms_db
+    command:
+      - "mysqld"
+      - "--innodb-file-per-table=1"
+      - "--lower-case-table-names=0"
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_unicode_ci"
+    volumes:
+      - "./data/db:/var/lib/mysql"
+    environment:
+      - "TZ=${TZ:-America/Sao_Paulo}"
+      - "MARIADB_RANDOM_ROOT_PASSWORD=yes"
+      - "MYSQL_DATABASE=${MYSQL_DATABASE:-librenms}"
+      - "MYSQL_USER=${MYSQL_USER:-librenms}"
+      - "MYSQL_PASSWORD=${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}"
+    restart: always
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: librenms_redis
+    environment:
+      - "TZ=${TZ:-America/Sao_Paulo}"
+    restart: always
+
+  msmtpd:
+    image: crazymax/msmtpd:latest
+    container_name: librenms_msmtpd
+    env_file:
+      - "./msmtpd.env"
+    restart: always
+
+  librenms:
+    image: librenms/librenms:latest
+    container_name: librenms
+    hostname: librenms
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    ports:
+      - target: 8000
+        published: ${APP_PORT:-8001}
+        protocol: tcp
+    depends_on:
+      - db
+      - redis
+      - msmtpd
+    volumes:
+      - "./data/librenms:/data"
+    env_file:
+      - "./librenms.env"
+    environment:
+      - "TZ=${TZ:-America/Sao_Paulo}"
+      - "PUID=${PUID:-1000}"
+      - "PGID=${PGID:-1000}"
+      - "DB_HOST=db"
+      - "DB_NAME=${MYSQL_DATABASE:-librenms}"
+      - "DB_USER=${MYSQL_USER:-librenms}"
+      - "DB_PASSWORD=${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}"
+      - "DB_TIMEOUT=60"
+    restart: always
+
+  dispatcher:
+    image: librenms/librenms:latest
+    container_name: librenms_dispatcher
+    hostname: librenms-dispatcher
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      - librenms
+      - redis
+    volumes:
+      - "./data/librenms:/data"
+    env_file:
+      - "./librenms.env"
+    environment:
+      - "TZ=${TZ:-America/Sao_Paulo}"
+      - "PUID=${PUID:-1000}"
+      - "PGID=${PGID:-1000}"
+      - "DB_HOST=db"
+      - "DB_NAME=${MYSQL_DATABASE:-librenms}"
+      - "DB_USER=${MYSQL_USER:-librenms}"
+      - "DB_PASSWORD=${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}"
+      - "DB_TIMEOUT=60"
+      - "DISPATCHER_NODE_ID=dispatcher1"
+      - "SIDECAR_DISPATCHER=1"
+    restart: always

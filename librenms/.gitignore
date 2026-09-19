@@ -1,0 +1,4 @@
+.env
+librenms.env
+msmtpd.env
+data/
