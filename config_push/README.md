@@ -15,14 +15,14 @@ diff, aprovação, agendamento, auditoria e compliance, multi-vendor (Netmiko).
 - Aprovação, agendamento (cron/once), auditoria e RBAC.
 - Credencial padrão global (TACACS/AAA) e/ou por device.
 
-**Backup / versionamento (núcleo próprio)**
-- Coleta de config multi-vendor com Netmiko.
-- Versionamento em **Git** (`dulwich`, Apache-2.0) por device.
-- Histórico, **diff** entre versões e base para drift/rollback.
+**Backup / versionamento (congelado)**
+- Motor próprio (Netmiko + Git/`dulwich`) **implementado mas fora do menu** até a
+  integração com o rConfig (fonte de backup) ser concluída. Segue acessível por URL.
+- **Conectores opcionais**: **LibreNMS** (descoberta/inventário) e **rConfig**
+  (inventário + status de backup + diff). Oxidized não é utilizado.
 
 **Plataforma**
 - Tema escuro/claro/automático, i18n PT/EN/ES, API e webhooks.
-- **Conectores opcionais**: LibreNMS (descoberta), Oxidized (backup), rConfig (import).
 
 ## Quickstart (Docker Swarm)
 
