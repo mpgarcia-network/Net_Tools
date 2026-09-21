@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('cp.title') }}</h1>
+  {% if user.role in ['admin','operator'] %}
+  <a class="btn primary" href="/compliance/policies/new">{{ t('cp.new') }}</a>
+  {% endif %}
+</div>
+
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+
+<h2>{{ t('cp.policies') }}</h2>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('cp.targets') }}</th><th>{{ t('cp.rules') }}</th><th>{{ t('cp.last_run') }}</th><th>{{ t('c.active') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for it in policies %}
+    {% set p = it.policy %}
+    <tr>
+      <td>{{ p.id }}</td>
+      <td>{{ p.name }}{% if p.description %}<div class="muted">{{ p.description }}</div>{% endif %}</td>
+      <td class="muted">{{ it.target_label }}</td>
+      <td>{{ t('cp.rules_count', n=it.rule_count) }}</td>
+      <td>
+        {% if it.last %}
+          <span class="st st-{{ it.last.status }}">{{ t('status.' ~ it.last.status) }}</span>
+          <span class="muted">{{ it.last.created_at.strftime('%d/%m/%Y %H:%M') if it.last.created_at else '' }}</span>
+          <a href="/compliance/runs/{{ it.last.id }}">{{ t('c.view') }}</a>
+        {% else %}<span class="muted">-</span>{% endif %}
+      </td>
+      <td>{{ t('c.yes') if p.enabled else t('c.no') }}</td>
+      <td class="nowrap">
+        {% if user.role in ['admin','operator'] %}
+        <form method="post" action="/compliance/policies/{{ p.id }}/run" style="display:inline">
+          <button class="btn primary" type="submit">{{ t('cp.run') }}</button>
+        </form>
+        <a href="/compliance/policies/{{ p.id }}/edit">{{ t('c.edit') }}</a>
+        {% endif %}
+        {% if user.role == 'admin' %}
+        <form method="post" action="/compliance/policies/{{ p.id }}/delete" style="display:inline"
+              onsubmit="return confirm('{{ t('cp.confirm_remove') }} {{ p.name }}?')">
+          <button class="link danger" type="submit">{{ t('c.remove') }}</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">{{ t('cp.no_policies') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="row between">
+  <h2>{{ t('cp.runs') }}</h2>
+  <a class="btn" href="/compliance/runs">{{ t('c.view') }}</a>
+</div>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.status') }}</th><th>{{ t('cp.compliant') }} / {{ t('cp.violation') }} / {{ t('cp.cperror') }}</th><th>{{ t('cp.targets') }}</th><th>{{ t('c.requester') }}</th><th>{{ t('c.created') }}</th></tr></thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td><a href="/compliance/runs/{{ r.id }}">{{ r.id }}</a></td>
+      <td>{{ r.policy_name }}</td>
+      <td><span class="st st-{{ r.status }}">{{ t('status.' ~ r.status) }}</span></td>
+      <td>{{ t('cp.summary', ok=r.compliant, viol=r.violations, err=r.errors) }}</td>
+      <td>{{ r.total }}</td>
+      <td>{{ r.requested_by }}</td>
+      <td>{{ r.created_at.strftime('%d/%m/%Y %H:%M') if r.created_at else '-' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">{{ t('cp.no_runs') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

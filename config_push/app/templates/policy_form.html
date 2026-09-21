@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+{% macro rule_row(kind='require', pattern='', severity='error', case='0', description='') %}
+<div class="rulerow row">
+  <select name="rule_kind">
+    <option value="require" {{ 'selected' if kind == 'require' }}>{{ t('cp.rule_require') }}</option>
+    <option value="forbid" {{ 'selected' if kind == 'forbid' }}>{{ t('cp.rule_forbid') }}</option>
+    <option value="regex" {{ 'selected' if kind == 'regex' }}>{{ t('cp.rule_regex') }}</option>
+  </select>
+  <input name="rule_pattern" placeholder="{{ t('cp.rule_pattern') }}" value="{{ pattern }}" style="flex:2">
+  <select name="rule_severity">
+    <option value="error" {{ 'selected' if severity == 'error' }}>{{ t('cp.sev_error') }}</option>
+    <option value="warn" {{ 'selected' if severity == 'warn' }}>{{ t('cp.sev_warn') }}</option>
+  </select>
+  <select name="rule_case">
+    <option value="0" {{ 'selected' if case != '1' }}>{{ t('cp.rule_case_any') }}</option>
+    <option value="1" {{ 'selected' if case == '1' }}>{{ t('cp.rule_case_exact') }}</option>
+  </select>
+  <input name="rule_description" placeholder="{{ t('cp.rule_desc') }}" value="{{ description }}" style="flex:1">
+  <button class="link danger" type="button" onclick="removeRuleRow(this)">✕</button>
+</div>
+{% endmacro %}
+
+<h1>{{ t('cp.edit') if policy else t('cp.new') }}</h1>
+<form class="card" method="post" action="/compliance/policies/save">
+  <input type="hidden" name="policy_id" value="{{ policy.id if policy else '' }}">
+  <label>{{ t('c.name') }} *<input name="name" required value="{{ policy.name if policy else '' }}"></label>
+  <label>{{ t('cp.desc') }}<input name="description" value="{{ policy.description if policy else '' }}"></label>
+  <label>{{ t('cp.enabled') }}
+    <select name="enabled">
+      <option value="1" {{ 'selected' if not policy or policy.enabled }}>{{ t('c.yes') }}</option>
+      <option value="0" {{ 'selected' if policy and not policy.enabled }}>{{ t('c.no') }}</option>
+    </select>
+  </label>
+
+  <h3>{{ t('cp.selectors') }}</h3>
+  <p class="muted">{{ t('cp.selectors_hint') }}</p>
+  <div class="grid2">
+    <label>{{ t('c.vendor') }}
+      <select name="vendor">
+        <option value="">{{ t('bulk.any') }}</option>
+        {% for v in vendors %}<option value="{{ v }}" {{ 'selected' if policy and policy.vendor == v }}>{{ v }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>{{ t('c.driver') }}
+      <select name="driver">
+        <option value="">{{ t('bulk.any') }}</option>
+        {% for d, label in drivers %}<option value="{{ d }}" {{ 'selected' if policy and policy.driver == d }}>{{ label }} ({{ d }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>{{ t('cp.tag') }}<input name="tag" value="{{ policy.tag if policy else '' }}"></label>
+  </div>
+  <label>{{ t('cp.devices') }}
+    <select name="device_ids" multiple size="8">
+      {% for d in devices %}
+      <option value="{{ d.id }}" {{ 'selected' if d.id in selected_ids }}>{{ d.name }} ({{ d.ip }})</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <h3>{{ t('cp.rules') }}</h3>
+  <p class="muted">{{ t('cp.rules_hint') }}</p>
+  <div id="ruleRows">
+    {% for r in (policy.rules if policy else []) %}
+      {{ rule_row(r.kind, r.pattern, r.severity, '1' if r.case_sensitive else '0', r.description) }}
+    {% endfor %}
+  </div>
+  <button class="btn" type="button" onclick="addRuleRow()">{{ t('cp.add_rule') }}</button>
+
+  <div class="row end">
+    <a class="btn" href="/compliance">{{ t('c.cancel') }}</a>
+    <button class="btn primary" type="submit">{{ t('c.save') }}</button>
+  </div>
+</form>
+
+<template id="ruleTpl">{{ rule_row() }}</template>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('cp.title') }} #{{ run.id }}</h1>
+  <span class="st st-{{ run.status }}">{{ t('status.' ~ run.status) }}</span>
+</div>
+<div class="meta">
+  <div><strong>{{ t('c.name') }}:</strong> {{ run.policy_name }}</div>
+  <div><strong>{{ t('c.requester') }}:</strong> {{ run.requested_by }}</div>
+  <div><strong>{{ t('c.created') }}:</strong> {{ run.created_at.strftime('%d/%m/%Y %H:%M') if run.created_at else '-' }}</div>
+  <div><strong>{{ t('cp.targets') }}:</strong> {{ run.total }}</div>
+</div>
+<p class="muted">{{ t('cp.summary', ok=run.compliant, viol=run.violations, err=run.errors) }}</p>
+
+<div class="row end">
+  <a class="btn" href="/compliance/runs">{{ t('cp.runs') }}</a>
+  <a class="btn" href="/compliance">{{ t('cp.policies') }}</a>
+</div>
+
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.status') }}</th><th>{{ t('cp.changed') }}</th><th>{{ t('cp.findings') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for r in results %}
+    {% set sc = 'success' if r.status == 'compliant' else 'failed' if r.status == 'violation' else 'pending' %}
+    <tr>
+      <td>{{ r.id }}</td>
+      <td><a href="/compliance/device/{{ r.device_id }}">{{ r.device_name }}</a></td>
+      <td>{{ r.device_ip }}</td>
+      <td><span class="st st-{{ sc }}">{{ t('cp.compliant') if r.status == 'compliant' else t('cp.violation') if r.status == 'violation' else t('cp.cperror') }}</span></td>
+      <td>{% if r.status == 'error' %}<span class="muted">-</span>{% else %}{{ t('cp.changed_hint') if r.changed else t('cp.no_changes') }}{% endif %}</td>
+      <td>{{ r.findings|length }}</td>
+      <td>{% if r.findings %}<button class="link" type="button" onclick="toggleFindings({{ r.id }})">{{ t('cp.evidence') }}</button>{% endif %}</td>
+    </tr>
+    {% if r.findings %}
+    <tr class="outputrow" id="find-{{ r.id }}" style="display:none"><td colspan="7">
+      {% for f in r.findings %}
+      <div class="card">
+        <strong>{{ t('cp.rule') }} #{{ f.rule_id }}</strong>
+        <span class="badge">{{ t('cp.rule_' ~ f.kind) }}</span>
+        <span class="badge">{{ t('cp.sev_' ~ f.severity) }}</span>
+        <code>{{ f.pattern }}</code>
+        {% if f.description %}<div class="muted">{{ f.description }}</div>{% endif %}
+        {% if f.invalid %}<div class="error">{{ t('cp.invalid_regex', e=f.invalid) }}</div>{% endif %}
+        {% if f.lines %}<div class="muted">{{ t('cp.lines') }}: {{ f.lines|join(', ') }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </td></tr>
+    {% endif %}
+  {% else %}
+    <tr><td colspan="7" class="muted">{{ t('cp.no_results') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

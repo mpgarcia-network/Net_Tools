@@ -31,7 +31,21 @@ from .connectors.rconfig import RConfigConnector
 from .db import Base, SessionLocal, engine, ensure_schema, utcnow
 from .i18n import LANGS, t as translate, translator
 from .importer import parse_devices
-from .models import AuditLog, Backup, Device, Run, RunTarget, Schedule, Snippet, User
+from .models import (
+    AuditLog,
+    Backup,
+    ComplianceResult,
+    ComplianceRun,
+    Device,
+    Policy,
+    PolicyRule,
+    Run,
+    RunTarget,
+    Schedule,
+    Snippet,
+    User,
+)
+from .compliance import select_devices, start_policy_async
 from .security import (
     MIN_PASSWORD_LEN,
     encrypt_secret,
@@ -2296,3 +2310,280 @@ def schedule_delete(request: Request, schedule_id: int):
     finally:
         db.close()
     return RedirectResponse("/schedules", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Conformidade (golden config) e drift
+# ---------------------------------------------------------------------------
+def _policy_target_label(policy: Policy) -> str:
+    parts = []
+    if policy.vendor:
+        parts.append(f"vendor={policy.vendor}")
+    if policy.driver:
+        parts.append(f"driver={policy.driver}")
+    if policy.tag:
+        parts.append(f"tag={policy.tag}")
+    try:
+        n = len(json.loads(policy.device_ids or "[]"))
+    except (ValueError, TypeError):
+        n = 0
+    if n:
+        parts.append(f"{n} device(s)")
+    return " · ".join(parts) or "-"
+
+
+def _findings(raw: str) -> list:
+    try:
+        data = json.loads(raw or "[]")
+        return data if isinstance(data, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
+@app.get("/compliance", response_class=HTMLResponse)
+def compliance_list(request: Request):
+    require_login(request)
+    db = SessionLocal()
+    try:
+        policies = db.scalars(select(Policy).order_by(Policy.name)).all()
+        items = []
+        for p in policies:
+            last = db.scalar(
+                select(ComplianceRun)
+                .where(ComplianceRun.policy_id == p.id)
+                .order_by(ComplianceRun.id.desc())
+                .limit(1)
+            )
+            items.append(
+                {
+                    "policy": p,
+                    "rule_count": len(p.rules),
+                    "last": last,
+                    "target_label": _policy_target_label(p),
+                }
+            )
+        runs = db.scalars(
+            select(ComplianceRun).order_by(ComplianceRun.id.desc()).limit(30)
+        ).all()
+    finally:
+        db.close()
+    return render(
+        request,
+        "compliance.html",
+        policies=items,
+        runs=runs,
+        notice=request.query_params.get("notice", ""),
+    )
+
+
+@app.get("/compliance/policies/new", response_class=HTMLResponse)
+def policy_new(request: Request):
+    require_role(request, {"admin", "operator"})
+    db = SessionLocal()
+    try:
+        devices = db.scalars(select(Device).order_by(Device.name)).all()
+    finally:
+        db.close()
+    return render(
+        request,
+        "policy_form.html",
+        policy=None,
+        vendors=list(VENDORS.keys()),
+        drivers=all_drivers(),
+        devices=devices,
+        selected_ids=[],
+    )
+
+
+@app.get("/compliance/policies/{policy_id}/edit", response_class=HTMLResponse)
+def policy_edit(request: Request, policy_id: int):
+    require_role(request, {"admin", "operator"})
+    db = SessionLocal()
+    try:
+        policy = db.scalar(
+            select(Policy)
+            .options(selectinload(Policy.rules))
+            .where(Policy.id == policy_id)
+        )
+        if not policy:
+            raise HTTPException(404, "politica nao encontrada")
+        devices = db.scalars(select(Device).order_by(Device.name)).all()
+        try:
+            selected_ids = [int(x) for x in json.loads(policy.device_ids or "[]")]
+        except (ValueError, TypeError):
+            selected_ids = []
+    finally:
+        db.close()
+    return render(
+        request,
+        "policy_form.html",
+        policy=policy,
+        vendors=list(VENDORS.keys()),
+        drivers=all_drivers(),
+        devices=devices,
+        selected_ids=selected_ids,
+    )
+
+
+@app.post("/compliance/policies/save")
+async def policy_save(request: Request):
+    user = require_role(request, {"admin", "operator"})
+    form = await request.form()
+    name = (form.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "nome obrigatorio")
+    db = SessionLocal()
+    try:
+        pid = (form.get("policy_id") or "").strip()
+        policy = db.get(Policy, int(pid)) if pid.isdigit() else None
+        if pid and not policy:
+            raise HTTPException(404, "politica nao encontrada")
+        if policy is None:
+            policy = Policy(created_by=user["name"])
+            db.add(policy)
+        policy.name = name
+        policy.description = (form.get("description") or "").strip()
+        policy.vendor = (form.get("vendor") or "").strip()
+        policy.driver = (form.get("driver") or "").strip()
+        policy.tag = (form.get("tag") or "").strip()
+        policy.enabled = (form.get("enabled") or "1") == "1"
+        policy.device_ids = json.dumps(
+            [int(x) for x in form.getlist("device_ids") if str(x).isdigit()]
+        )
+        policy.rules.clear()
+        kinds = form.getlist("rule_kind")
+        patterns = form.getlist("rule_pattern")
+        severities = form.getlist("rule_severity")
+        cases = form.getlist("rule_case")
+        descs = form.getlist("rule_description")
+        for i, pat in enumerate(patterns):
+            pat = (pat or "").strip()
+            if not pat:
+                continue
+            kind = kinds[i] if i < len(kinds) else "require"
+            severity = severities[i] if i < len(severities) else "error"
+            policy.rules.append(
+                PolicyRule(
+                    kind=kind if kind in ("require", "forbid", "regex") else "require",
+                    pattern=pat,
+                    severity=severity if severity in ("error", "warn") else "error",
+                    case_sensitive=(cases[i] if i < len(cases) else "0") == "1",
+                    description=(descs[i] if i < len(descs) else "").strip(),
+                )
+            )
+        audit(db, user["name"], "policy_save", policy.name)
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/compliance", status_code=303)
+
+
+@app.post("/compliance/policies/{policy_id}/run")
+def policy_run(request: Request, policy_id: int):
+    user = require_role(request, {"admin", "operator"})
+    try:
+        run_id = start_policy_async(policy_id, user["name"])
+    except ValueError:
+        raise HTTPException(404, "politica nao encontrada")
+    return RedirectResponse(f"/compliance/runs/{run_id}", status_code=303)
+
+
+@app.post("/compliance/policies/{policy_id}/delete")
+def policy_delete(request: Request, policy_id: int):
+    user = require_role(request, {"admin"})
+    db = SessionLocal()
+    try:
+        policy = db.get(Policy, policy_id)
+        if policy:
+            audit(db, user["name"], "policy_delete", policy.name)
+            db.delete(policy)
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/compliance", status_code=303)
+
+
+@app.get("/compliance/runs", response_class=HTMLResponse)
+def compliance_runs_list(request: Request):
+    require_login(request)
+    db = SessionLocal()
+    try:
+        runs = db.scalars(
+            select(ComplianceRun).order_by(ComplianceRun.id.desc()).limit(200)
+        ).all()
+    finally:
+        db.close()
+    return render(request, "compliance_runs.html", runs=runs)
+
+
+@app.get("/compliance/runs/{run_id}", response_class=HTMLResponse)
+def compliance_run_detail(request: Request, run_id: int):
+    require_login(request)
+    db = SessionLocal()
+    try:
+        run = db.get(ComplianceRun, run_id)
+        if not run:
+            raise HTTPException(404, "execucao nao encontrada")
+        rows = db.scalars(
+            select(ComplianceResult)
+            .where(ComplianceResult.run_id == run_id)
+            .order_by(ComplianceResult.device_name)
+        ).all()
+        results = [
+            {
+                "id": r.id,
+                "device_id": r.device_id,
+                "device_name": r.device_name,
+                "device_ip": r.device_ip,
+                "status": r.status,
+                "changed": r.changed,
+                "message": r.message,
+                "findings": _findings(r.findings),
+            }
+            for r in rows
+        ]
+    finally:
+        db.close()
+    return render(request, "compliance_run.html", run=run, results=results)
+
+
+@app.get("/compliance/device/{device_id}", response_class=HTMLResponse)
+def compliance_device(request: Request, device_id: int):
+    require_login(request)
+    db = SessionLocal()
+    try:
+        device = db.get(Device, device_id)
+        if not device:
+            raise HTTPException(404, "device nao encontrado")
+        rows = db.scalars(
+            select(ComplianceResult)
+            .where(ComplianceResult.device_id == device_id)
+            .order_by(ComplianceResult.id.desc())
+            .limit(50)
+        ).all()
+        results = [
+            {
+                "id": r.id,
+                "run_id": r.run_id,
+                "status": r.status,
+                "changed": r.changed,
+                "message": r.message,
+                "created_at": r.created_at,
+                "findings": _findings(r.findings),
+            }
+            for r in rows
+        ]
+    finally:
+        db.close()
+    from . import backup as bk
+
+    versions = bk.versions(device.name)
+    diff = bk.diff(device.name)
+    return render(
+        request,
+        "compliance_device.html",
+        device=device,
+        results=results,
+        versions=versions,
+        diff=diff,
+    )

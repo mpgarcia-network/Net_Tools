@@ -40,6 +40,25 @@ function toggleDiff(id) {
   if (el) el.style.display = (el.style.display === 'none' ? '' : 'none');
 }
 
+// Mostrar/ocultar as evidencias (achados) de conformidade
+function toggleFindings(id) {
+  const el = document.getElementById('find-' + id);
+  if (el) el.style.display = (el.style.display === 'none' ? '' : 'none');
+}
+
+// Politica de conformidade: adiciona/remove linhas de regra
+function addRuleRow() {
+  const box = document.getElementById('ruleRows');
+  const tpl = document.getElementById('ruleTpl');
+  if (!box || !tpl) return;
+  box.appendChild(tpl.content.firstElementChild.cloneNode(true));
+}
+
+function removeRuleRow(btn) {
+  const row = btn.closest('.rulerow');
+  if (row) row.remove();
+}
+
 // Device form: filtra modelos pelo vendor e resolve o driver
 function filterModels() {
   const vendor = document.getElementById('vendor');

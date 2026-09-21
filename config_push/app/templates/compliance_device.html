@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('cp.device_title') }} — {{ device.name }}</h1>
+  <a class="btn" href="/devices/{{ device.id }}/edit">{{ t('c.edit') }}</a>
+</div>
+<div class="meta">
+  <div><strong>{{ t('c.ip') }}:</strong> {{ device.ip }}</div>
+  <div><strong>{{ t('c.vendor') }}:</strong> {{ device.vendor }}</div>
+  <div><strong>{{ t('c.driver') }}:</strong> {{ device.device_type }}</div>
+  <div><strong>{{ t('c.tags') }}:</strong> {{ device.tags }}</div>
+</div>
+
+<h2>{{ t('cp.runs') }}</h2>
+<table>
+  <thead><tr><th>#</th><th>{{ t('c.created') }}</th><th>{{ t('c.status') }}</th><th>{{ t('cp.changed') }}</th><th>{{ t('cp.findings') }}</th><th></th></tr></thead>
+  <tbody>
+  {% for r in results %}
+    {% set sc = 'success' if r.status == 'compliant' else 'failed' if r.status == 'violation' else 'pending' %}
+    <tr>
+      <td><a href="/compliance/runs/{{ r.run_id }}">{{ r.run_id }}</a></td>
+      <td>{{ r.created_at.strftime('%d/%m/%Y %H:%M') if r.created_at else '-' }}</td>
+      <td><span class="st st-{{ sc }}">{{ t('cp.compliant') if r.status == 'compliant' else t('cp.violation') if r.status == 'violation' else t('cp.cperror') }}</span></td>
+      <td>{% if r.status == 'error' %}<span class="muted">-</span>{% else %}{{ t('cp.changed_hint') if r.changed else t('cp.no_changes') }}{% endif %}</td>
+      <td>{{ r.findings|length }}</td>
+      <td>{% if r.findings %}<button class="link" type="button" onclick="toggleFindings({{ r.id }})">{{ t('cp.evidence') }}</button>{% endif %}</td>
+    </tr>
+    {% if r.findings %}
+    <tr class="outputrow" id="find-{{ r.id }}" style="display:none"><td colspan="6">
+      {% for f in r.findings %}
+      <div class="card">
+        <strong>{{ t('cp.rule') }} #{{ f.rule_id }}</strong>
+        <span class="badge">{{ t('cp.rule_' ~ f.kind) }}</span>
+        <span class="badge">{{ t('cp.sev_' ~ f.severity) }}</span>
+        <code>{{ f.pattern }}</code>
+        {% if f.description %}<div class="muted">{{ f.description }}</div>{% endif %}
+        {% if f.invalid %}<div class="error">{{ t('cp.invalid_regex', e=f.invalid) }}</div>{% endif %}
+        {% if f.lines %}<div class="muted">{{ t('cp.lines') }}: {{ f.lines|join(', ') }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </td></tr>
+    {% endif %}
+  {% else %}
+    <tr><td colspan="6" class="muted">{{ t('cp.no_history') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>{{ t('cp.drift') }}</h2>
+{% if diff %}
+<pre class="code">{{ diff }}</pre>
+{% else %}
+<p class="muted">{{ t('cp.no_drift') }}</p>
+{% endif %}
+
+<h2>{{ t('bk.versions') }}</h2>
+<table>
+  <thead><tr><th>{{ t('bk.hash') }}</th><th>{{ t('bk.when') }}</th><th>{{ t('bk.message') }}</th></tr></thead>
+  <tbody>
+  {% for v in versions %}
+    <tr><td>{{ v.short }}</td><td>{{ v.time }}</td><td>{{ v.message }}</td></tr>
+  {% else %}
+    <tr><td colspan="3" class="muted">{{ t('bk.no_versions') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

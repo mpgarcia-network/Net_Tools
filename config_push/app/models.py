@@ -170,6 +170,94 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
 
+class Policy(Base):
+    """Politica de conformidade (golden config): regras + alvo de aplicacao."""
+
+    __tablename__ = "policies"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(191), index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    # Seletores (combinam entre si; vazio = nao filtra). Lista explicita de ids
+    # em JSON restringe ainda mais quando preenchida.
+    vendor: Mapped[str] = mapped_column(String(80), default="")
+    driver: Mapped[str] = mapped_column(String(80), default="")
+    tag: Mapped[str] = mapped_column(String(191), default="")
+    device_ids: Mapped[str] = mapped_column(Text, default="[]")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    rules: Mapped[list["PolicyRule"]] = relationship(
+        back_populates="policy", cascade="all, delete-orphan", order_by="PolicyRule.id"
+    )
+
+
+class PolicyRule(Base):
+    """Regra de uma politica: require (deve existir), forbid (nao pode existir)
+    ou regex (deve casar alguma linha)."""
+
+    __tablename__ = "policy_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    policy_id: Mapped[int] = mapped_column(ForeignKey("policies.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="require")
+    pattern: Mapped[str] = mapped_column(Text, default="")
+    description: Mapped[str] = mapped_column(Text, default="")
+    # error | warn
+    severity: Mapped[str] = mapped_column(String(10), default="error")
+    case_sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    policy: Mapped["Policy"] = relationship(back_populates="rules")
+
+
+class ComplianceRun(Base):
+    """Execucao de uma politica de conformidade em um conjunto de devices."""
+
+    __tablename__ = "compliance_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    policy_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    policy_name: Mapped[str] = mapped_column(String(191), default="")
+    # running | done | failed
+    status: Mapped[str] = mapped_column(String(20), default="running", index=True)
+    requested_by: Mapped[str] = mapped_column(String(120), default="")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    compliant: Mapped[int] = mapped_column(Integer, default=0)
+    violations: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    results: Mapped[list["ComplianceResult"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class ComplianceResult(Base):
+    """Resultado da avaliacao de um device numa execucao de conformidade."""
+
+    __tablename__ = "compliance_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("compliance_runs.id"), index=True)
+    device_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    device_name: Mapped[str] = mapped_column(String(191), default="")
+    device_ip: Mapped[str] = mapped_column(String(191), default="")
+    # compliant | violation | error
+    status: Mapped[str] = mapped_column(String(20), default="compliant", index=True)
+    # lista JSON de regras violadas (kind/pattern/lines/severity/...)
+    findings: Mapped[str] = mapped_column(Text, default="[]")
+    config_hash: Mapped[str] = mapped_column(String(64), default="")
+    changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+
+    run: Mapped["ComplianceRun"] = relationship(back_populates="results")
+
+
 class Setting(Base):
     """Configuracoes da aplicacao (singleton id=1)."""
 
