@@ -13,6 +13,7 @@ catalogo** a partir do campo ``os`` (e da versao, no caso do Dell).
 
 import json
 import os
+import ssl
 from urllib import request
 
 # os (LibreNMS) -> (vendor do catalogo, modelo/plataforma do catalogo)
@@ -53,12 +54,30 @@ def _vendor_model(os_name: str, version: str) -> tuple[str, str] | None:
 class LibreNMSConnector:
     name = "librenms"
 
-    def __init__(self) -> None:
-        self.base = (os.environ.get("LIBRENMS_URL") or "").rstrip("/")
-        self.token = os.environ.get("LIBRENMS_TOKEN") or ""
+    def __init__(self, base: str | None = None, token: str | None = None, verify: bool | None = None) -> None:
+        env_base = os.environ.get("LIBRENMS_URL") or ""
+        env_verify = (os.environ.get("LIBRENMS_VERIFY_TLS", "true") or "").lower() not in (
+            "0", "false", "no", "off",
+        )
+        self.base = ((base if base is not None else env_base) or "").rstrip("/")
+        self.token = token if token is not None else (os.environ.get("LIBRENMS_TOKEN") or "")
+        self.verify = env_verify if verify is None else bool(verify)
 
     def available(self) -> bool:
         return bool(self.base and self.token)
+
+    def _ctx(self):
+        return None if self.verify else ssl._create_unverified_context()
+
+    def ping(self) -> str:
+        """Valida a conexao. Levanta excecao com o erro real se falhar."""
+        req = request.Request(
+            f"{self.base}/api/v0/devices",
+            headers={"X-Auth-Token": self.token, "Accept": "application/json"},
+        )
+        with request.urlopen(req, timeout=20, context=self._ctx()) as resp:
+            data = json.loads(resp.read().decode())
+        return f"{len(data.get('devices', []))} device(s)"
 
     def list_devices(self) -> list[dict]:
         if not self.available():
@@ -68,7 +87,7 @@ class LibreNMSConnector:
                 f"{self.base}/api/v0/devices",
                 headers={"X-Auth-Token": self.token, "Accept": "application/json"},
             )
-            with request.urlopen(req, timeout=60) as resp:
+            with request.urlopen(req, timeout=60, context=self._ctx()) as resp:
                 data = json.loads(resp.read().decode())
         except Exception:  # noqa: BLE001
             return []

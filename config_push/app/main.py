@@ -66,6 +66,7 @@ from .service import (
 from .settings_store import (
     branding,
     get_settings,
+    integration_config,
     invalidate_branding,
     media_path,
     save_media,
@@ -863,6 +864,12 @@ CONNECTORS = {"librenms": LibreNMSConnector, "rconfig": RConfigConnector}
 SYNC_SKIP_OS = {"windows", "linux"}
 
 
+def _connector_for(db, source: str):
+    """Instancia o conector com a conexao configurada (Settings; fallback env)."""
+    cfg = integration_config(db).get(source, {})
+    return CONNECTORS[source](**cfg)
+
+
 @app.post("/devices/sync")
 def devices_sync(request: Request, source: str = Form("")):
     """Importa/atualiza o inventario a partir de uma fonte externa."""
@@ -871,13 +878,13 @@ def devices_sync(request: Request, source: str = Form("")):
     src = source.strip().lower()
     if src not in CONNECTORS:
         raise HTTPException(400, translate(lang, "msg.source_invalid"))
-    conn = CONNECTORS[src]()
-    if not conn.available():
-        raise HTTPException(400, translate(lang, "msg.connector_unavailable"))
-    rows = conn.list_devices()
     db = SessionLocal()
     created = updated = 0
     try:
+        conn = _connector_for(db, src)
+        if not conn.available():
+            raise HTTPException(400, translate(lang, "msg.connector_unavailable"))
+        rows = conn.list_devices()
         for row in rows:
             ip = (row.get("ip") or "").strip()
             name = (row.get("name") or "").strip()
@@ -2057,6 +2064,12 @@ def settings_page(request: Request):
             "has_default_password": bool(s.default_password_enc),
             "has_default_enable": bool(s.default_enable_password_enc),
             "notify_webhook_url": s.notify_webhook_url,
+            "librenms_url": s.librenms_url,
+            "has_librenms_token": bool(s.librenms_token_enc),
+            "librenms_verify_tls": s.librenms_verify_tls,
+            "rconfig_url": s.rconfig_url,
+            "has_rconfig_token": bool(s.rconfig_token_enc),
+            "rconfig_verify_tls": s.rconfig_verify_tls,
         }
     finally:
         db.close()
@@ -2106,6 +2119,63 @@ def settings_credentials(
     finally:
         db.close()
     return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/integrations/{source}")
+def settings_integration(
+    request: Request,
+    source: str,
+    url: str = Form(""),
+    token: str = Form(""),
+    verify: str = Form(""),
+    clear_token: str = Form(""),
+):
+    """Conexao de API (LibreNMS/rConfig). Token vazio = mantem o atual."""
+    actor = require_role(request, {"admin"})
+    if source not in CONNECTORS:
+        raise HTTPException(400, "integracao invalida")
+    db = SessionLocal()
+    try:
+        s = get_settings(db)
+        setattr(s, f"{source}_url", url.strip())
+        if clear_token:
+            setattr(s, f"{source}_token_enc", "")
+        elif token:
+            setattr(s, f"{source}_token_enc", encrypt_secret(token))
+        setattr(s, f"{source}_verify_tls", verify == "1")
+        audit(db, actor["name"], "settings_integration", f"{source} url={url.strip() or '(vazio)'}")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/integrations/{source}/test")
+def settings_integration_test(
+    request: Request,
+    source: str,
+    url: str = Form(""),
+    token: str = Form(""),
+    verify: str = Form("0"),
+):
+    """Testa a conexao com os valores informados (ou os salvos, se em branco)."""
+    require_role(request, {"admin"})
+    if source not in CONNECTORS:
+        raise HTTPException(400, "integracao invalida")
+    db = SessionLocal()
+    try:
+        stored = integration_config(db).get(source, {})
+    finally:
+        db.close()
+    base = (url.strip() or stored.get("base") or "").rstrip("/")
+    auth = token or stored.get("token") or ""
+    conn = CONNECTORS[source](base=base, token=auth, verify=(verify == "1"))
+    if not conn.available():
+        return JSONResponse({"status": "failed", "error": "URL/token nao configurados"})
+    try:
+        return JSONResponse({"status": "success", "message": conn.ping()})
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"status": "failed", "error": str(e)[:300]})
 
 
 @app.post("/settings")

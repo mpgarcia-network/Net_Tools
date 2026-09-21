@@ -275,5 +275,12 @@ class Setting(Base):
     default_enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     # webhook para notificacao (Teams/Slack/generico). Vazio = desligado.
     notify_webhook_url: Mapped[str] = mapped_column(String(500), default="")
+    # Conexoes de API das integracoes (editaveis em Settings). Vazio = usa env.
+    librenms_url: Mapped[str] = mapped_column(String(500), default="")
+    librenms_token_enc: Mapped[str] = mapped_column(Text, default="")
+    librenms_verify_tls: Mapped[bool] = mapped_column(Boolean, default=True)
+    rconfig_url: Mapped[str] = mapped_column(String(500), default="")
+    rconfig_token_enc: Mapped[str] = mapped_column(Text, default="")
+    rconfig_verify_tls: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

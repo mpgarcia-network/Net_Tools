@@ -139,6 +139,33 @@ async function testDevice() {
   }
 }
 
+// Configuracoes: testa a conexao de uma integracao (librenms/rconfig)
+async function testIntegration(source) {
+  const el = document.getElementById('res-' + source);
+  const url = (document.getElementById(source + '_url') || {}).value || '';
+  const token = (document.getElementById(source + '_token') || {}).value || '';
+  const verify = document.getElementById(source + '_verify') && document.getElementById(source + '_verify').checked ? '1' : '0';
+  if (el) { el.className = 'muted'; el.textContent = el.dataset.testing || '...'; }
+  const body = new URLSearchParams({ url: url, token: token, verify: verify });
+  try {
+    const res = await fetch('/settings/integrations/' + source + '/test', {
+      method: 'POST', body: body, credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (el) {
+      if (data.status === 'success') {
+        el.className = 'ok';
+        el.textContent = 'OK · ' + (data.message || '');
+      } else {
+        el.className = 'error';
+        el.textContent = 'falha · ' + (data.error || data.status);
+      }
+    }
+  } catch (e) {
+    if (el) { el.className = 'error'; el.textContent = 'erro: ' + e; }
+  }
+}
+
 // Polling do status do run (pagina de detalhe)
 (function () {
   if (typeof window.RUN_ID === 'undefined') return;

@@ -4,7 +4,8 @@ Plataforma de **gestão de configuração de rede (NCM)** — push, backup/versi
 diff, aprovação, agendamento, auditoria e compliance, multi-vendor (Netmiko).
 
 > Aplicação web (FastAPI + Netmiko) empacotada como stack Docker Swarm, autônoma
-> (não depende de outras ferramentas). Conectores opcionais para LibreNMS e Oxidized.
+> (não depende de outras ferramentas). Conectores opcionais para LibreNMS e rConfig,
+> configuráveis pela própria interface (Configurações → Conexões de API).
 
 ## Recursos
 
@@ -15,11 +16,21 @@ diff, aprovação, agendamento, auditoria e compliance, multi-vendor (Netmiko).
 - Aprovação, agendamento (cron/once), auditoria e RBAC.
 - Credencial padrão global (TACACS/AAA) e/ou por device.
 
+**Conformidade / Drift (Golden config)**
+- Políticas com regras **require** (deve existir), **forbid** (não pode existir) e
+  **regex**; alvo por vendor/driver/tag e/ou lista de devices.
+- Execução assíncrona lendo a config ao vivo (Netmiko), com **evidências** (linhas)
+  por regra e **drift** (mudança desde a última coleta) via snapshot Git interno.
+
 **Backup / versionamento (congelado)**
 - Motor próprio (Netmiko + Git/`dulwich`) **implementado mas fora do menu** até a
   integração com o rConfig (fonte de backup) ser concluída. Segue acessível por URL.
 - **Conectores opcionais**: **LibreNMS** (descoberta/inventário) e **rConfig**
   (inventário + status de backup + diff). Oxidized não é utilizado.
+
+**Integrações**
+- **Conexões de API** (LibreNMS/rConfig) editáveis em **Configurações** — URL, token
+  (cifrado em repouso) e validação de TLS, com botão **Testar** e fallback para `.env`.
 
 **Plataforma**
 - Tema escuro/claro/automático, i18n PT/EN/ES, API e webhooks.
@@ -47,8 +58,9 @@ Acesse `http://<host>:8090` e entre com `admin` + a senha do `init-env`.
 | `NETMIKO_MAX_WORKERS` / `NETMIKO_CONN_TIMEOUT` | Concorrência/timeout | `10` / `30` |
 | `SWARM_NODE_CONSTRAINT` | Nó do Swarm | hostname |
 
-Conectores opcionais: `LIBRENMS_URL`/`LIBRENMS_TOKEN`, `OXIDIZED_URL`/`OXIDIZED_TOKEN`,
-`RCONFIG_URL`/`RCONFIG_TOKEN`.
+Integrações: `LIBRENMS_URL`/`LIBRENMS_TOKEN`/`LIBRENMS_VERIFY_TLS` e
+`RCONFIG_URL`/`RCONFIG_TOKEN`/`RCONFIG_VERIFY_TLS` — opcionais; podem ser definidas
+em **Configurações → Conexões de API** (o banco tem prioridade sobre o `.env`).
 
 ## Segurança
 
@@ -64,10 +76,11 @@ app/
   main.py            # rotas + UI
   engine.py          # executor Netmiko (push, dry-run, diff, captura)
   backup.py          # motor de backup/versionamento (dulwich)
+  compliance.py      # conformidade (golden) + drift
   catalog.py         # vendor/modelo -> driver Netmiko
   importer.py        # import xlsx/CSV
   i18n.py            # PT/EN/ES
-  connectors/        # librenms, oxidized, rconfig (opcionais)
+  connectors/        # librenms, rconfig (opcionais)
   templates/ static/
 ```
 
@@ -75,9 +88,9 @@ app/
 
 - [x] Push com governança, diff, agendamento, auditoria, i18n, edição em massa.
 - [x] Motor de backup/versionamento (Git/dulwich) + diff.
-- [ ] Compliance/golden config (checks `require`/`forbid`/`match`).
-- [ ] Drift + notificações.
-- [ ] API REST + tokens; SSO/2FA; trilha imutável.
+- [x] Compliance/golden config (`require`/`forbid`/`regex`) + drift por device.
+- [x] Conexões de API (LibreNMS/rConfig) editáveis na interface.
+- [ ] Notificações de drift; API REST + tokens; SSO/2FA; trilha imutável.
 - [ ] Instalador Windows.
 
 ## Licença

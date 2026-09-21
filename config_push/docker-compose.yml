@@ -29,6 +29,7 @@ services:
       # Integracao (conectores opcionais)
       - LIBRENMS_URL=${LIBRENMS_URL:-}
       - LIBRENMS_TOKEN=${LIBRENMS_TOKEN:-}
+      - LIBRENMS_VERIFY_TLS=${LIBRENMS_VERIFY_TLS:-true}
       - RCONFIG_URL=${RCONFIG_URL:-}
       - RCONFIG_TOKEN=${RCONFIG_TOKEN:-}
       - RCONFIG_VERIFY_TLS=${RCONFIG_VERIFY_TLS:-true}

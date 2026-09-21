@@ -118,6 +118,16 @@ def ensure_schema() -> None:
                 conn.execute(
                     text("ALTER TABLE settings ADD COLUMN notify_webhook_url VARCHAR(500) DEFAULT ''")
                 )
+            for col, ddl in (
+                ("librenms_url", "VARCHAR(500) DEFAULT ''"),
+                ("librenms_token_enc", "TEXT DEFAULT ''"),
+                ("librenms_verify_tls", "BOOLEAN DEFAULT 1"),
+                ("rconfig_url", "VARCHAR(500) DEFAULT ''"),
+                ("rconfig_token_enc", "TEXT DEFAULT ''"),
+                ("rconfig_verify_tls", "BOOLEAN DEFAULT 1"),
+            ):
+                if col not in setcols:
+                    conn.execute(text(f"ALTER TABLE settings ADD COLUMN {col} {ddl}"))
     if _IS_SQLITE and "devices" in insp.get_table_names():
         # indice unico de IP (best-effort: so cria se nao houver duplicatas legadas)
         try:

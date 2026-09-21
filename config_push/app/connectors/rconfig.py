@@ -26,21 +26,29 @@ from urllib import request
 class RConfigConnector:
     name = "rconfig"
 
-    def __init__(self) -> None:
-        self.base = (os.environ.get("RCONFIG_URL") or "").rstrip("/")
-        self.token = os.environ.get("RCONFIG_TOKEN") or ""
-        self.verify = (os.environ.get("RCONFIG_VERIFY_TLS", "true") or "").lower() not in (
+    def __init__(self, base: str | None = None, token: str | None = None, verify: bool | None = None) -> None:
+        env_base = os.environ.get("RCONFIG_URL") or ""
+        env_verify = (os.environ.get("RCONFIG_VERIFY_TLS", "true") or "").lower() not in (
             "0",
             "false",
             "no",
             "off",
         )
+        self.base = ((base if base is not None else env_base) or "").rstrip("/")
+        self.token = token if token is not None else (os.environ.get("RCONFIG_TOKEN") or "")
+        self.verify = env_verify if verify is None else bool(verify)
 
     def available(self) -> bool:
         return bool(self.base and self.token)
 
     def _ctx(self):
         return None if self.verify else ssl._create_unverified_context()
+
+    def ping(self) -> str:
+        """Valida a conexao. Levanta excecao com o erro real se falhar."""
+        data = json.loads(self._req("/api/v2/devices").decode())
+        rows = data.get("data", []) if isinstance(data, dict) else (data or [])
+        return f"{len(rows)} device(s)"
 
     def _req(self, path: str, method: str = "GET", data=None, accept: str = "application/json") -> bytes:
         url = f"{self.base}{path}"

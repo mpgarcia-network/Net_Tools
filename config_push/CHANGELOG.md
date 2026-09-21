@@ -1,5 +1,18 @@
 # Changelog — Net Tools
 
+## v0.3.0 — 2026-09-21
+
+**Conformidade / Drift (Golden config)**
+- Políticas de regras `require` / `forbid` / `regex`, com severidade (erro/aviso),
+  alvo por vendor/driver/tag e/ou lista de devices.
+- Execução assíncrona lendo a config ao vivo (Netmiko); resultados por device com
+  **evidências** (linhas) e **drift** (mudança desde a última coleta) via snapshot
+  Git interno. Telas de políticas, execuções e histórico por device.
+
+**Integrações**
+- **Conexões de API** (LibreNMS/rConfig) editáveis em **Configurações**: URL, token
+  (cifrado em repouso) e validação de TLS, com **Testar** e fallback para `.env`.
+
 ## v0.2.0 — 2026-09-19
 
 **Núcleo NCM**

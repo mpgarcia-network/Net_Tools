@@ -36,6 +36,53 @@
 </div>
 
 <div class="card">
+  <h2>{{ t('set.api_title') }}</h2>
+  <p class="muted">{{ t('set.api_hint') }}</p>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <h3>LibreNMS</h3>
+    <form id="cfg-librenms" method="post" action="/settings/integrations/librenms">
+      <label>{{ t('set.api_url') }}
+        <input name="url" id="librenms_url" value="{{ settings.librenms_url }}" placeholder="http://librenms:8000">
+      </label>
+      <label>{{ t('set.api_token') }}
+        <input type="password" name="token" id="librenms_token" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_librenms_token else t('set.not_set') }}">
+      </label>
+      <label class="chk"><input type="checkbox" name="verify" id="librenms_verify" value="1" {{ 'checked' if settings.librenms_verify_tls }}> {{ t('set.api_verify') }}</label>
+      <label class="chk"><input type="checkbox" name="clear_token" value="1"> {{ t('set.api_clear_token') }}</label>
+      <div class="row">
+        <button class="btn primary" type="submit">{{ t('set.api_save') }}</button>
+        <button class="btn" type="button" onclick="testIntegration('librenms')">{{ t('set.api_test') }}</button>
+        <span class="muted" id="res-librenms" data-testing="{{ t('set.api_testing') }}"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>rConfig</h3>
+    <form id="cfg-rconfig" method="post" action="/settings/integrations/rconfig">
+      <label>{{ t('set.api_url') }}
+        <input name="url" id="rconfig_url" value="{{ settings.rconfig_url }}" placeholder="https://rconfig:8443">
+      </label>
+      <label>{{ t('set.api_token') }}
+        <input type="password" name="token" id="rconfig_token" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_rconfig_token else t('set.not_set') }}">
+      </label>
+      <label class="chk"><input type="checkbox" name="verify" id="rconfig_verify" value="1" {{ 'checked' if settings.rconfig_verify_tls }}> {{ t('set.api_verify') }}</label>
+      <label class="chk"><input type="checkbox" name="clear_token" value="1"> {{ t('set.api_clear_token') }}</label>
+      <div class="row">
+        <button class="btn primary" type="submit">{{ t('set.api_save') }}</button>
+        <button class="btn" type="button" onclick="testIntegration('rconfig')">{{ t('set.api_test') }}</button>
+        <span class="muted" id="res-rconfig" data-testing="{{ t('set.api_testing') }}"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
   <h2>{{ t('set.texts') }}</h2>
   <form method="post" action="/settings">
     <label>{{ t('set.brand_login') }}<input name="brand_login" value="{{ settings.brand_login }}"></label>
