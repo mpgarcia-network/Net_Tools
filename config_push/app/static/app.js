@@ -40,6 +40,38 @@ function toggleDiff(id) {
   if (el) el.style.display = (el.style.display === 'none' ? '' : 'none');
 }
 
+// Devices: seletor de colunas (engrenagem) com persistencia no navegador
+function _devColState() {
+  try { return JSON.parse(localStorage.getItem('devcols') || '{}'); } catch (e) { return {}; }
+}
+function applyDeviceCols() {
+  const state = _devColState();
+  document.querySelectorAll('[data-col]').forEach(function (el) {
+    const k = el.getAttribute('data-col');
+    el.style.display = (state[k] === false) ? 'none' : '';
+  });
+  document.querySelectorAll('#colsMenuItems input[data-colkey]').forEach(function (cb) {
+    cb.checked = state[cb.getAttribute('data-colkey')] !== false;
+  });
+}
+function toggleDeviceCol(cb) {
+  const state = _devColState();
+  state[cb.getAttribute('data-colkey')] = cb.checked;
+  localStorage.setItem('devcols', JSON.stringify(state));
+  applyDeviceCols();
+}
+function resetDeviceCols() {
+  localStorage.removeItem('devcols');
+  applyDeviceCols();
+}
+function toggleColsMenu() {
+  const m = document.getElementById('colsMenu');
+  if (m) m.style.display = (m.style.display === 'none' ? '' : 'none');
+}
+(function () {
+  if (document.querySelector('[data-col]')) applyDeviceCols();
+})();
+
 // Mostrar/ocultar as evidencias (achados) de conformidade
 function toggleFindings(id) {
   const el = document.getElementById('find-' + id);

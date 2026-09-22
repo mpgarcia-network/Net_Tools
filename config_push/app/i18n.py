@@ -372,6 +372,9 @@ T: dict[str, dict[str, str]] = {
     "site.core": {"pt": "Core", "en": "Core", "es": "Core"},
     "site.firewall": {"pt": "Firewall", "en": "Firewall", "es": "Firewall"},
     "msg.out_of_scope": {"pt": "seleção fora da sua alçada ({n} device(s)). Fale com um operador avançado/admin.", "en": "selection outside your clearance ({n} device(s)). Ask an advanced operator/admin.", "es": "selección fuera de su alcance ({n} dispositivo(s)). Consulte a un operador avanzado/admin."},
+    "dev.columns": {"pt": "Colunas", "en": "Columns", "es": "Columnas"},
+    "dev.cols_hint": {"pt": "Escolha as colunas visíveis (salvo neste navegador).", "en": "Choose visible columns (saved in this browser).", "es": "Elija las columnas visibles (guardado en este navegador)."},
+    "dev.cols_reset": {"pt": "Mostrar todas", "en": "Show all", "es": "Mostrar todas"},
 
     # --- conformidade (golden/drift) ---
     "nav.compliance": {"pt": "Conformidade", "en": "Compliance", "es": "Conformidad"},
