@@ -140,6 +140,7 @@ T: dict[str, dict[str, str]] = {
     "df.password_keep": {"pt": "(deixe vazio p/ manter)", "en": "(leave blank to keep)", "es": "(dejar vacío para mantener)"},
     "df.enable": {"pt": "Senha de enable (opcional — HP/3Com system-view, Cisco enable)", "en": "Enable password (optional — HP/3Com system-view, Cisco enable)", "es": "Contraseña de enable (opcional — HP/3Com system-view, Cisco enable)"},
     "df.tags": {"pt": "Tags (vírgula)", "en": "Tags (comma)", "es": "Etiquetas (coma)"},
+    "df.site_role": {"pt": "Papel no site", "en": "Site role", "es": "Rol en el sitio"},
     "df.enabled": {"pt": "Ativo", "en": "Active", "es": "Activo"},
     "df.test": {"pt": "Testar conexão", "en": "Test connection", "es": "Probar conexión"},
 
@@ -296,7 +297,7 @@ T: dict[str, dict[str, str]] = {
     "uf.role": {"pt": "Papel", "en": "Role", "es": "Rol"},
     "uf.password": {"pt": "Senha", "en": "Password", "es": "Contraseña"},
     "uf.password_keep": {"pt": "deixe vazio p/ manter", "en": "leave blank to keep", "es": "dejar vacío para mantener"},
-    "usr.roles_hint": {"pt": "Papéis: admin (tudo), operator (cria/roda), approver (aprova), viewer (só leitura).", "en": "Roles: admin (everything), operator (create/run), approver (approve), viewer (read-only).", "es": "Roles: admin (todo), operator (crea/ejecuta), approver (aprueba), viewer (solo lectura)."},
+    "usr.roles_hint": {"pt": "Alçada por nível: básico = acesso; médio = acesso/TOR/distribuição; avançado = tudo (core/firewall) + gestão; admin = tudo.", "en": "Clearance by level: basic = access; medium = access/TOR/distribution; advanced = everything (core/firewall) + management; admin = all.", "es": "Alcance por nivel: básico = acceso; medio = acceso/TOR/distribución; avanzado = todo (core/firewall) + gestión; admin = todo."},
 
     # --- configuracoes ---
     "set.title": {"pt": "Configurações", "en": "Settings", "es": "Configuración"},
@@ -356,6 +357,21 @@ T: dict[str, dict[str, str]] = {
     "bk.stale_hint": {"pt": "atrasado = sem coleta nas últimas {h}h", "en": "stale = no collection in the last {h}h", "es": "atrasado = sin recolección en las últimas {h}h"},
     "bk.summary": {"pt": "ok: {ok} · falhou: {failed} · atrasado: {stale} · nunca: {never}", "en": "ok: {ok} · failed: {failed} · stale: {stale} · never: {never}", "es": "ok: {ok} · falló: {failed} · atrasado: {stale} · nunca: {never}"},
     "bk.started": {"pt": "Coleta em andamento em segundo plano.", "en": "Collection running in the background.", "es": "Recolección en curso en segundo plano."},
+
+    # --- papeis de usuario (roles) e papel do equipamento (site role) ---
+    "role.admin": {"pt": "Administrador", "en": "Administrator", "es": "Administrador"},
+    "role.operator_basic": {"pt": "Operador Básico", "en": "Basic Operator", "es": "Operador Básico"},
+    "role.operator_medium": {"pt": "Operador Médio", "en": "Medium Operator", "es": "Operador Medio"},
+    "role.operator_advanced": {"pt": "Operador Avançado", "en": "Advanced Operator", "es": "Operador Avanzado"},
+    "role.approver": {"pt": "Aprovador", "en": "Approver", "es": "Aprobador"},
+    "role.viewer": {"pt": "Leitor", "en": "Viewer", "es": "Lector"},
+    "site.none": {"pt": "Não classificado", "en": "Unclassified", "es": "Sin clasificar"},
+    "site.acesso": {"pt": "Acesso", "en": "Access", "es": "Acceso"},
+    "site.tor": {"pt": "TOR", "en": "TOR", "es": "TOR"},
+    "site.distribuicao": {"pt": "Distribuição", "en": "Distribution", "es": "Distribución"},
+    "site.core": {"pt": "Core", "en": "Core", "es": "Core"},
+    "site.firewall": {"pt": "Firewall", "en": "Firewall", "es": "Firewall"},
+    "msg.out_of_scope": {"pt": "seleção fora da sua alçada ({n} device(s)). Fale com um operador avançado/admin.", "en": "selection outside your clearance ({n} device(s)). Ask an advanced operator/admin.", "es": "selección fuera de su alcance ({n} dispositivo(s)). Consulte a un operador avanzado/admin."},
 
     # --- conformidade (golden/drift) ---
     "nav.compliance": {"pt": "Conformidade", "en": "Compliance", "es": "Conformidad"},

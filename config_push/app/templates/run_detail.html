@@ -28,7 +28,7 @@
 </div>
 {% endif %}
 
-{% if run.status == 'pending_approval' and user.role in ['admin','operator'] %}
+{% if run.status == 'pending_approval' and user.role in ['admin','operator_basic','operator_medium','operator_advanced','approver'] %}
 <div class="card">
   <form method="post" action="/runs/{{ run.id }}/cancel" style="display:inline">
     <button class="btn" type="submit">{{ t('rd.cancel') }}</button>
@@ -36,7 +36,7 @@
 </div>
 {% endif %}
 
-{% if run.status in ['failed','partial','done','canceled'] and user.role in ['admin','operator'] %}
+{% if run.status in ['failed','partial','done','canceled'] and user.role in ['admin','operator_basic','operator_medium','operator_advanced'] %}
 <div class="card">
   <form method="post" action="/runs/{{ run.id }}/retry" style="display:inline">
     <button class="btn primary" type="submit">{{ t('rd.retry_failed') }}</button>

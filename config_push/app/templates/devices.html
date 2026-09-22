@@ -23,7 +23,7 @@
   <button class="btn" type="submit">{{ t('dev.preview_import') }}</button>
 </form>
 
-{% if user.role in ['admin','operator'] %}
+{% if user.role in ['admin','operator_advanced'] %}
 <form class="card" method="post" action="/devices/sync">
   <div class="row">
     <label style="flex:1">{{ t('dev.sync') }} — {{ t('dev.sync_hint') }}
@@ -66,6 +66,13 @@
         <option value="0" {{ 'selected' if active == '0' }}>{{ t('c.no') }}</option>
       </select>
     </label>
+    <label>{{ t('df.site_role') }}
+      <select name="site_role">
+        <option value="">{{ t('bulk.any') }}</option>
+        <option value="_none" {{ 'selected' if site_role == '_none' }}>{{ t('site.none') }}</option>
+        {% for sr in site_roles %}<option value="{{ sr }}" {{ 'selected' if site_role == sr }}>{{ t('site.' ~ sr) }}</option>{% endfor %}
+      </select>
+    </label>
   </div>
   <div class="row end">
     <a class="btn" href="/devices">{{ t('c.clear') }}</a>
@@ -73,7 +80,7 @@
   </div>
 </form>
 
-{% if user.role in ['admin','operator'] %}
+{% if user.role in ['admin','operator_advanced'] %}
 <details class="card">
   <summary><strong>{{ t('bulk.title') }}</strong> <span class="muted">({{ total }} {{ t('bulk.in_scope') }})</span></summary>
   <p class="muted">{{ t('bulk.hint') }} {{ t('bulk.scope_hint') }}</p>
@@ -84,6 +91,7 @@
     <input type="hidden" name="scope_driver" value="{{ driver }}">
     <input type="hidden" name="scope_protocol" value="{{ protocol }}">
     <input type="hidden" name="scope_active" value="{{ active }}">
+    <input type="hidden" name="scope_site_role" value="{{ site_role }}">
     <div class="grid2">
       <label>{{ t('df.port') }}<input type="number" name="port" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('df.protocol') }}
@@ -95,6 +103,12 @@
       </label>
       <label>{{ t('c.driver') }}<input name="device_type" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('c.tags') }}<input name="tags" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('df.site_role') }}
+        <select name="site_role">
+          <option value="">{{ t('bulk.keep') }}</option>
+          {% for sr in site_roles %}<option value="{{ sr }}">{{ t('site.' ~ sr) }}</option>{% endfor %}
+        </select>
+      </label>
       <label>{{ t('df.username') }}<input name="username" autocomplete="off" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('df.password') }}<input type="password" name="password" autocomplete="new-password" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('df.enable') }}<input type="password" name="enable_password" autocomplete="new-password" placeholder="{{ t('bulk.keep') }}"></label>
@@ -111,14 +125,14 @@
 </details>
 {% endif %}
 
-{% set qs = 'q=' ~ (q|urlencode) ~ '&vendor=' ~ (vendor|urlencode) ~ '&driver=' ~ (driver|urlencode) ~ '&protocol=' ~ (protocol|urlencode) ~ '&active=' ~ (active|urlencode) %}
+{% set qs = 'q=' ~ (q|urlencode) ~ '&vendor=' ~ (vendor|urlencode) ~ '&driver=' ~ (driver|urlencode) ~ '&protocol=' ~ (protocol|urlencode) ~ '&active=' ~ (active|urlencode) ~ '&site_role=' ~ (site_role|urlencode) %}
 {% macro th(field, label) -%}
 {% set nd = 'desc' if (sort == field and dir == 'asc') else 'asc' %}
 <th><a href="/devices?{{ qs }}&sort={{ field }}&dir={{ nd }}">{{ label }}{% if sort == field %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a></th>
 {%- endmacro %}
 <p class="muted">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
 <table>
-  <thead><tr>{{ th('id', '#') }}{{ th('name', t('c.name')) }}{{ th('ip', t('c.ip')) }}{{ th('vendor', t('c.vendor')) }}{{ th('model', t('df.model')) }}{{ th('device_type', t('c.driver')) }}{{ th('protocol', t('c.protocol')) }}{{ th('port', t('c.port')) }}{{ th('username', t('c.username')) }}{{ th('tags', t('c.tags')) }}{{ th('enabled', t('c.active')) }}<th></th></tr></thead>
+  <thead><tr>{{ th('id', '#') }}{{ th('name', t('c.name')) }}{{ th('ip', t('c.ip')) }}{{ th('vendor', t('c.vendor')) }}{{ th('model', t('df.model')) }}{{ th('device_type', t('c.driver')) }}{{ th('protocol', t('c.protocol')) }}{{ th('port', t('c.port')) }}{{ th('username', t('c.username')) }}{{ th('tags', t('c.tags')) }}{{ th('site_role', t('df.site_role')) }}{{ th('enabled', t('c.active')) }}<th></th></tr></thead>
   <tbody>
   {% for d in devices %}
     <tr>
@@ -132,6 +146,7 @@
       <td>{{ d.port }}</td>
       <td>{{ d.username }}</td>
       <td>{{ d.tags }}</td>
+      <td>{{ t('site.' ~ d.site_role) if d.site_role else t('site.none') }}</td>
       <td>{{ t('c.yes') if d.enabled else t('c.no') }}</td>
       <td class="nowrap">
         <a href="/devices/{{ d.id }}/edit">{{ t('c.edit') }}</a>
@@ -143,7 +158,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="12" class="muted">{{ t('dev.empty') }}</td></tr>
+    <tr><td colspan="13" class="muted">{{ t('dev.empty') }}</td></tr>
   {% endfor %}
   </tbody>
 </table>

@@ -73,6 +73,8 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"))
             if "external_id" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN external_id VARCHAR(191) DEFAULT ''"))
+            if "site_role" not in cols:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN site_role VARCHAR(20) DEFAULT ''"))
     if "snippets" in insp.get_table_names():
         scols = {c["name"] for c in insp.get_columns("snippets")}
         if "drivers" not in scols:

@@ -2,7 +2,7 @@
 {% block content %}
 <h1>{{ t('account.title') }}</h1>
 <div class="card narrow">
-  <p>{{ t('account.user') }}: <b>{{ user.name }}</b> <span class="badge">{{ user.role }}</span></p>
+  <p>{{ t('account.user') }}: <b>{{ user.name }}</b> <span class="badge">{{ t('role.' ~ user.role) }}</span></p>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   {% if ok %}<p class="ok">{{ ok }}</p>{% endif %}
   <form method="post" action="/account/password">

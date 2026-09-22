@@ -26,7 +26,7 @@
       <td>{{ s.created_by }}</td>
       <td class="nowrap">
         <a href="/snippets/{{ s.id }}/edit">{{ t('c.edit') }}</a>
-        {% if user.role in ['admin','operator'] %}
+        {% if user.role in ['admin','operator_advanced'] %}
         <form method="post" action="/snippets/{{ s.id }}/duplicate" style="display:inline">
           <button class="link" type="submit">{{ t('c.duplicate') }}</button>
         </form>

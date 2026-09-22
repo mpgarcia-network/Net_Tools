@@ -11,7 +11,7 @@
     <tr>
       <td>{{ u.id }}</td>
       <td>{{ u.username }}</td>
-      <td><span class="badge">{{ u.role }}</span></td>
+      <td><span class="badge">{{ t('role.' ~ u.role) }}</span></td>
       <td>{{ t('c.yes') if u.active else t('c.no') }}</td>
       <td>{{ u.created_at.strftime('%d/%m/%Y') if u.created_at else '' }}</td>
       <td class="nowrap">

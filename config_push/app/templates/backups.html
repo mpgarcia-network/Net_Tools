@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row between">
   <h1>{{ t('bk.title') }}</h1>
-  {% if user.role in ['admin','operator'] %}
+  {% if user.role in ['admin','operator_advanced'] %}
   <form method="post" action="/backups/collect-all"
         onsubmit="return confirm('{{ t('bk.collect_all') }}?')">
     <button class="btn primary" type="submit">{{ t('bk.collect_all') }}</button>
@@ -34,7 +34,7 @@
       <td>{{ t('c.yes') if it.last and it.last.changed else t('c.no') if it.last else '-' }}</td>
       <td class="nowrap">
         <a href="/backups/{{ d.id }}">{{ t('c.view') }}</a>
-        {% if user.role in ['admin','operator'] %}
+        {% if user.role in ['admin','operator_advanced'] %}
         <form method="post" action="/backups/collect/{{ d.id }}" style="display:inline">
           <button class="link" type="submit">{{ t('bk.collect') }}</button>
         </form>

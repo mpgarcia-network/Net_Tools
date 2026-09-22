@@ -46,6 +46,8 @@ class Device(Base):
     enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[str] = mapped_column(String(255), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Papel no site: acesso | tor | distribuicao | core | firewall ("" = nao classificado)
+    site_role: Mapped[str] = mapped_column(String(20), default="", index=True)
     # Origem do cadastro: manual | librenms | rconfig | xlsx
     source: Mapped[str] = mapped_column(String(20), default="manual", index=True)
     # ID na fonte externa (correlacao entre ferramentas)

@@ -48,6 +48,14 @@
     <label>{{ t('df.enable') }}
       <input type="password" name="enable_password" autocomplete="new-password"></label>
     <label>{{ t('df.tags') }}<input name="tags" value="{{ device.tags if device else '' }}"></label>
+    <label>{{ t('df.site_role') }}
+      <select name="site_role">
+        <option value="">{{ t('site.none') }}</option>
+        {% for sr in site_roles %}
+        <option value="{{ sr }}" {{ 'selected' if device and device.site_role == sr }}>{{ t('site.' ~ sr) }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label class="chk"><input type="checkbox" name="enabled" value="1"
       {{ 'checked' if (device.enabled if device else true) }}> {{ t('df.enabled') }}</label>
   </div>

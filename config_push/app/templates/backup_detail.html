@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row between">
   <h1>{{ device.name }} <span class="muted">({{ device.ip }})</span></h1>
-  {% if user.role in ['admin','operator'] %}
+  {% if user.role in ['admin','operator_advanced'] %}
   <form method="post" action="/backups/collect/{{ device.id }}">
     <button class="btn primary" type="submit">{{ t('bk.collect') }}</button>
   </form>

@@ -26,6 +26,18 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import BASE_DIR, settings
 from .catalog import VENDORS, all_drivers, resolve_driver, resolve_os_driver
+from .access import (
+    ADMIN_ROLES,
+    ALL_ROLES,
+    APPROVER_ROLES,
+    AUDIT_ROLES,
+    MANAGE_ROLES,
+    RUN_ROLES,
+    SITE_ROLES,
+    allowed_site_roles,
+    can_target,
+    normalize_site_role,
+)
 from .connectors.librenms import LibreNMSConnector
 from .connectors.rconfig import RConfigConnector
 from .db import Base, SessionLocal, engine, ensure_schema, utcnow
@@ -98,7 +110,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-ROLES = ("admin", "operator", "approver", "viewer")
+ROLES = ALL_ROLES
 PER_PAGE = 50
 
 
@@ -180,6 +192,8 @@ def init_db() -> None:
                     password,
                 )
         get_settings(db)
+        # migracao: o antigo papel generico 'operator' vira 'operator_advanced'
+        db.execute(text("UPDATE users SET role='operator_advanced' WHERE role='operator'"))
         now = utcnow()
         for sch in db.scalars(select(Schedule)).all():
             if (
@@ -218,6 +232,14 @@ def scheduler_loop() -> None:
                         if device_ids
                         else []
                     )
+                    # revalida a alcada pelo papel atual de quem criou o agendamento
+                    creator = (
+                        db.scalar(select(User).where(User.username == sch.created_by))
+                        if sch.created_by
+                        else None
+                    )
+                    creator_role = creator.role if creator else "viewer"
+                    devices = [d for d in devices if can_target(creator_role, d.site_role)]
                     if devices and not (
                         sch.require_approval and schedule_has_pending(db, sch.id)
                     ):
@@ -534,6 +556,7 @@ def devices_list(
     driver: str = "",
     protocol: str = "",
     active: str = "",
+    site_role: str = "",
     sort: str = "name",
     dir: str = "asc",
     page: int = 1,
@@ -551,6 +574,7 @@ def devices_list(
         "port": Device.port,
         "username": Device.username,
         "tags": Device.tags,
+        "site_role": Device.site_role,
         "enabled": Device.enabled,
     }
     if sort not in sort_cols:
@@ -571,6 +595,10 @@ def devices_list(
         conds.append(Device.protocol == protocol.strip())
     if active in ("1", "0"):
         conds.append(Device.enabled == (active == "1"))
+    if site_role == "_none":
+        conds.append(Device.site_role == "")
+    elif site_role.strip():
+        conds.append(Device.site_role == normalize_site_role(site_role))
     db = SessionLocal()
     try:
         total = db.scalar(select(func.count()).select_from(Device).where(*conds)) or 0
@@ -600,11 +628,13 @@ def devices_list(
         driver=driver,
         protocol=protocol,
         active=active,
+        site_role=site_role,
         page=page,
         pages=pages,
         total=total,
         vendors=list(VENDORS.keys()),
         drivers=driver_opts,
+        site_roles=SITE_ROLES,
         sort=sort,
         dir=dir,
     )
@@ -612,13 +642,13 @@ def devices_list(
 
 @app.get("/devices/new", response_class=HTMLResponse)
 def device_new(request: Request):
-    require_role(request, {"admin", "operator"})
-    return render(request, "device_form.html", device=None, vendors=VENDORS)
+    require_role(request, MANAGE_ROLES)
+    return render(request, "device_form.html", device=None, vendors=VENDORS, site_roles=SITE_ROLES)
 
 
 @app.get("/devices/{device_id}/edit", response_class=HTMLResponse)
 def device_edit(request: Request, device_id: int):
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         device = db.get(Device, device_id)
@@ -626,7 +656,7 @@ def device_edit(request: Request, device_id: int):
         db.close()
     if not device:
         raise HTTPException(404, "device nao encontrado")
-    return render(request, "device_form.html", device=device, vendors=VENDORS)
+    return render(request, "device_form.html", device=device, vendors=VENDORS, site_roles=SITE_ROLES)
 
 
 @app.post("/devices/save")
@@ -644,9 +674,10 @@ def device_save(
     password: str = Form(""),
     enable_password: str = Form(""),
     tags: str = Form(""),
+    site_role: str = Form(""),
     enabled: str = Form(""),
 ):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     lang = user.get("language") or "pt"
     name = name.strip()
     ip = ip.strip()
@@ -690,6 +721,7 @@ def device_save(
         if enable_password:
             device.enable_password_enc = encrypt_secret(enable_password)
         device.tags = tags.strip()
+        device.site_role = normalize_site_role(site_role)
         device.enabled = bool(enabled)
         audit(db, user["name"], "device_save", f"{device.name} ({device.ip})")
         db.commit()
@@ -713,7 +745,7 @@ def device_test(
     enable_password: str = Form(""),
 ):
     """Testa a conexao sem gravar. Usa a credencial global quando vazio."""
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     ip = ip.strip()
     if not ip:
         raise HTTPException(400, "informe o IP")
@@ -773,17 +805,19 @@ def devices_bulk_edit(
     scope_driver: str = Form(""),
     scope_protocol: str = Form(""),
     scope_active: str = Form(""),
+    scope_site_role: str = Form(""),
     port: str = Form(""),
     protocol: str = Form(""),
     device_type: str = Form(""),
     tags: str = Form(""),
+    site_role: str = Form(""),
     enabled: str = Form(""),
     username: str = Form(""),
     password: str = Form(""),
     enable_password: str = Form(""),
 ):
     """Edita em massa os devices que casam com o escopo (filtros da lista)."""
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     lang = user.get("language") or "pt"
     conds = []
     if scope_q.strip():
@@ -799,11 +833,16 @@ def devices_bulk_edit(
         conds.append(Device.protocol == scope_protocol.strip())
     if scope_active in ("1", "0"):
         conds.append(Device.enabled == (scope_active == "1"))
+    if scope_site_role == "_none":
+        conds.append(Device.site_role == "")
+    elif scope_site_role.strip():
+        conds.append(Device.site_role == normalize_site_role(scope_site_role))
     if not (
         port.strip()
         or protocol.strip()
         or device_type.strip()
         or tags.strip()
+        or site_role.strip()
         or enabled != ""
         or username.strip()
         or password
@@ -834,6 +873,8 @@ def devices_bulk_edit(
                 d.device_type = device_type.strip()
             if tags.strip():
                 d.tags = tags.strip()
+            if site_role.strip():
+                d.site_role = normalize_site_role(site_role)
             if enabled != "":
                 d.enabled = enabled == "1"
             if username.strip():
@@ -849,7 +890,8 @@ def devices_bulk_edit(
             "devices_bulk_edit",
             f"scope_vendor={scope_vendor} scope_q={scope_q} scope_driver={scope_driver} "
             f"scope_protocol={scope_protocol} scope_active={scope_active} n={n} "
-            f"port={port} protocol={protocol} driver={device_type} tags={tags} enabled={enabled} "
+            f"port={port} protocol={protocol} driver={device_type} tags={tags} "
+            f"site_role={site_role} enabled={enabled} "
             f"username={username} password={'set' if password else '-'} "
             f"enable={'set' if enable_password else '-'}",
         )
@@ -873,7 +915,7 @@ def _connector_for(db, source: str):
 @app.post("/devices/sync")
 def devices_sync(request: Request, source: str = Form("")):
     """Importa/atualiza o inventario a partir de uma fonte externa."""
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     lang = user.get("language") or "pt"
     src = source.strip().lower()
     if src not in CONNECTORS:
@@ -1067,7 +1109,7 @@ def _test_parsed(db, parsed: list[dict]) -> dict:
 @app.post("/devices/import")
 async def devices_import(request: Request, file: UploadFile = File(...)):
     """Primeira etapa: le a planilha/CSV e mostra um preview (nao grava nada)."""
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     content = await file.read()
     name = file.filename or ""
     parsed, errors = parse_devices(name, content)
@@ -1085,7 +1127,7 @@ async def devices_import(request: Request, file: UploadFile = File(...)):
 
 @app.post("/devices/import/test")
 def devices_import_test(request: Request):
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     token = request.session.get("import_token", "")
     path = _import_path(token)
     if not path:
@@ -1102,7 +1144,7 @@ def devices_import_test(request: Request):
 
 @app.post("/devices/import/confirm")
 def devices_import_confirm(request: Request):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     token = request.session.pop("import_token", "")
     name = request.session.pop("import_name", "")
     path = _import_path(token)
@@ -1211,7 +1253,7 @@ def snippets_list(request: Request, q: str = ""):
 
 @app.post("/snippets/{snippet_id}/duplicate")
 def snippet_duplicate(request: Request, snippet_id: int):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         src = db.get(Snippet, snippet_id)
@@ -1234,13 +1276,13 @@ def snippet_duplicate(request: Request, snippet_id: int):
 
 @app.get("/snippets/new", response_class=HTMLResponse)
 def snippet_new(request: Request):
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     return render(request, "snippet_form.html", snippet=None, drivers=all_drivers())
 
 
 @app.get("/snippets/{snippet_id}/edit", response_class=HTMLResponse)
 def snippet_edit(request: Request, snippet_id: int):
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         snippet = db.get(Snippet, snippet_id)
@@ -1260,7 +1302,7 @@ def snippet_save(
     body: str = Form(...),
     drivers: list[str] = Form([]),
 ):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         if snippet_id:
@@ -1343,13 +1385,18 @@ def runs_list(request: Request, status: str = "", page: int = 1):
 
 @app.get("/runs/new", response_class=HTMLResponse)
 def run_new(request: Request):
-    require_role(request, {"admin", "operator"})
+    user = require_role(request, RUN_ROLES)
+    allowed = allowed_site_roles(user["role"])
     db = SessionLocal()
     try:
         snippets = db.scalars(select(Snippet).order_by(Snippet.name)).all()
-        devices = db.scalars(
-            select(Device).where(Device.enabled == True).order_by(Device.name)  # noqa: E712
-        ).all()
+        devices = [
+            d
+            for d in db.scalars(
+                select(Device).where(Device.enabled == True).order_by(Device.name)  # noqa: E712
+            ).all()
+            if (d.site_role or "") in allowed
+        ]
     finally:
         db.close()
     all_tags = sorted(
@@ -1383,13 +1430,16 @@ def run_create(
     dry_run: str = Form(""),
     capture_diff: str = Form(""),
 ):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, RUN_ROLES)
     lang = user.get("language") or "pt"
     db = SessionLocal()
     try:
         if not device_ids:
             raise HTTPException(400, translate(lang, "msg.select_device"))
         devices = list(db.scalars(select(Device).where(Device.id.in_(device_ids))).all())
+        blocked = [d for d in devices if not can_target(user["role"], d.site_role)]
+        if blocked:
+            raise HTTPException(400, translate(lang, "msg.out_of_scope", n=len(blocked)))
         snippets = (
             list(
                 db.scalars(
@@ -1626,7 +1676,7 @@ def run_reject(request: Request, run_id: int, reason: str = Form("")):
 
 @app.post("/runs/{run_id}/cancel")
 def run_cancel(request: Request, run_id: int):
-    user = require_role(request, {"admin", "operator", "approver"})
+    user = require_role(request, RUN_ROLES | APPROVER_ROLES)
     db = SessionLocal()
     try:
         run = db.get(Run, run_id)
@@ -1643,11 +1693,20 @@ def run_cancel(request: Request, run_id: int):
 
 @app.post("/runs/{run_id}/retry")
 def run_retry(request: Request, run_id: int):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, RUN_ROLES)
+    lang = user.get("language") or "pt"
     db = SessionLocal()
     try:
         run = db.get(Run, run_id)
         if run and run.status in ("failed", "partial", "done", "canceled"):
+            dev_ids = [t.device_id for t in run.targets if t.device_id]
+            devs = (
+                list(db.scalars(select(Device).where(Device.id.in_(dev_ids))).all())
+                if dev_ids
+                else []
+            )
+            if any(not can_target(user["role"], d.site_role) for d in devs):
+                raise HTTPException(403, translate(lang, "msg.out_of_scope", n=1))
             pending = 0
             for t in run.targets:
                 if t.status == "failed":
@@ -1672,11 +1731,20 @@ def run_retry(request: Request, run_id: int):
 @app.post("/runs/{run_id}/rerun")
 def run_rerun(request: Request, run_id: int):
     """Reexecuta TODOS os alvos validos do run (nao apenas os que falharam)."""
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, RUN_ROLES)
+    lang = user.get("language") or "pt"
     db = SessionLocal()
     try:
         run = db.get(Run, run_id)
         if run and run.status in ("failed", "partial", "done", "canceled"):
+            dev_ids = [t.device_id for t in run.targets if t.device_id]
+            devs = (
+                list(db.scalars(select(Device).where(Device.id.in_(dev_ids))).all())
+                if dev_ids
+                else []
+            )
+            if any(not can_target(user["role"], d.site_role) for d in devs):
+                raise HTTPException(403, translate(lang, "msg.out_of_scope", n=1))
             n = 0
             for t in run.targets:
                 if t.commands:  # ignora alvos sem comando (sem snippet)
@@ -1780,7 +1848,7 @@ def backups_list(request: Request):
 
 @app.post("/backups/collect-all")
 def backups_collect_all(request: Request):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         audit(db, user["name"], "backup_all", "coleta em lote")
@@ -1793,7 +1861,7 @@ def backups_collect_all(request: Request):
 
 @app.post("/backups/collect/{device_id}")
 def backups_collect(request: Request, device_id: int):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     collect_backup(device_id, "manual", user["name"])
     return RedirectResponse(f"/backups/{device_id}", status_code=303)
 
@@ -1875,7 +1943,7 @@ def audit_view(
     date_to: str = "",
     page: int = 1,
 ):
-    require_role(request, {"admin", "approver", "operator"})
+    require_role(request, AUDIT_ROLES)
     page = max(1, page)
     conds = _audit_filters(user, action, date_from, date_to)
     db = SessionLocal()
@@ -1910,7 +1978,7 @@ def audit_export(
     date_from: str = "",
     date_to: str = "",
 ):
-    require_role(request, {"admin", "approver", "operator"})
+    require_role(request, AUDIT_ROLES)
     conds = _audit_filters(user, action, date_from, date_to)
     db = SessionLocal()
     try:
@@ -1978,7 +2046,7 @@ def user_save(
     request: Request,
     user_id: str = Form(""),
     username: str = Form(...),
-    role: str = Form("operator"),
+    role: str = Form("operator_basic"),
     password: str = Form(""),
     active: str = Form(""),
 ):
@@ -2264,7 +2332,7 @@ def schedules_list(request: Request):
 
 @app.get("/schedules/new", response_class=HTMLResponse)
 def schedule_new(request: Request):
-    require_role(request, {"admin", "operator"})
+    require_role(request, RUN_ROLES)
     db = SessionLocal()
     try:
         snippets = db.scalars(select(Snippet).order_by(Snippet.name)).all()
@@ -2276,7 +2344,7 @@ def schedule_new(request: Request):
 
 @app.get("/schedules/{schedule_id}/edit", response_class=HTMLResponse)
 def schedule_edit(request: Request, schedule_id: int):
-    require_role(request, {"admin", "operator"})
+    require_role(request, RUN_ROLES)
     db = SessionLocal()
     try:
         schedule = db.get(Schedule, schedule_id)
@@ -2312,7 +2380,8 @@ def schedule_save(
     require_approval: str = Form(""),
     enabled: str = Form(""),
 ):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, RUN_ROLES)
+    lang = user.get("language") or "pt"
     mode = mode if mode in ("cron", "once") else "cron"
     cron = cron.strip()
     if mode == "cron" and (not cron or not croniter.is_valid(cron)):
@@ -2325,6 +2394,11 @@ def schedule_save(
             raise HTTPException(400, "data/hora invalida") from None
     db = SessionLocal()
     try:
+        if device_ids:
+            devs = list(db.scalars(select(Device).where(Device.id.in_(device_ids))).all())
+            blocked = [d for d in devs if not can_target(user["role"], d.site_role)]
+            if blocked:
+                raise HTTPException(400, translate(lang, "msg.out_of_scope", n=len(blocked)))
         snippet = db.get(Snippet, int(snippet_id)) if snippet_id else None
         body = snippet.body if snippet else commands
         if schedule_id:
@@ -2352,7 +2426,7 @@ def schedule_save(
 
 @app.post("/schedules/{schedule_id}/toggle")
 def schedule_toggle(request: Request, schedule_id: int):
-    require_role(request, {"admin", "operator"})
+    require_role(request, RUN_ROLES)
     db = SessionLocal()
     try:
         schedule = db.get(Schedule, schedule_id)
@@ -2448,7 +2522,7 @@ def compliance_list(request: Request):
 
 @app.get("/compliance/policies/new", response_class=HTMLResponse)
 def policy_new(request: Request):
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         devices = db.scalars(select(Device).order_by(Device.name)).all()
@@ -2467,7 +2541,7 @@ def policy_new(request: Request):
 
 @app.get("/compliance/policies/{policy_id}/edit", response_class=HTMLResponse)
 def policy_edit(request: Request, policy_id: int):
-    require_role(request, {"admin", "operator"})
+    require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         policy = db.scalar(
@@ -2497,7 +2571,7 @@ def policy_edit(request: Request, policy_id: int):
 
 @app.post("/compliance/policies/save")
 async def policy_save(request: Request):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     form = await request.form()
     name = (form.get("name") or "").strip()
     if not name:
@@ -2550,7 +2624,7 @@ async def policy_save(request: Request):
 
 @app.post("/compliance/policies/{policy_id}/run")
 def policy_run(request: Request, policy_id: int):
-    user = require_role(request, {"admin", "operator"})
+    user = require_role(request, MANAGE_ROLES)
     try:
         run_id = start_policy_async(policy_id, user["name"])
     except ValueError:

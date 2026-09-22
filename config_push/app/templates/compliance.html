@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row between">
   <h1>{{ t('cp.title') }}</h1>
-  {% if user.role in ['admin','operator'] %}
+  {% if user.role in ['admin','operator_advanced'] %}
   <a class="btn primary" href="/compliance/policies/new">{{ t('cp.new') }}</a>
   {% endif %}
 </div>
@@ -29,7 +29,7 @@
       </td>
       <td>{{ t('c.yes') if p.enabled else t('c.no') }}</td>
       <td class="nowrap">
-        {% if user.role in ['admin','operator'] %}
+        {% if user.role in ['admin','operator_advanced'] %}
         <form method="post" action="/compliance/policies/{{ p.id }}/run" style="display:inline">
           <button class="btn primary" type="submit">{{ t('cp.run') }}</button>
         </form>

@@ -28,7 +28,7 @@
     {% endif %}
   </nav>
   <div class="who">
-    {{ user.name }} <span class="badge">{{ user.role }}</span> ·
+    {{ user.name }} <span class="badge">{{ t('role.' ~ user.role) }}</span> ·
     <a href="/account">{{ t('nav.account') }}</a> · <a href="/logout">{{ t('nav.logout') }}</a>
   </div>
 </header>
