@@ -13,6 +13,8 @@
 - Enforcement no servidor em criação de execução, agendamentos, retry/rerun e no
   scheduler (revalida pelo papel atual de quem criou). Gestão de devices/modelos
   restrita a Avançado/Admin.
+- **Devices**: engrenagem com **seletor de colunas** (Nome, IP, Vendor, Modelo,
+  Driver, Protocolo, Porta, Usuário, Tags, Camada, Ativo), persistido no navegador.
 
 ## v0.3.0 — 2026-09-21
 
