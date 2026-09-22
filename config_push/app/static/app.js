@@ -40,33 +40,43 @@ function toggleDiff(id) {
   if (el) el.style.display = (el.style.display === 'none' ? '' : 'none');
 }
 
-// Devices: seletor de colunas (engrenagem) com persistencia no navegador
+// Devices: engrenagem liga o modo de colunas; checkbox ao lado de cada coluna.
+// Ao desmarcar, a coluna e' ocultada (fica salvo no navegador).
+let _colsEdit = false;
 function _devColState() {
   try { return JSON.parse(localStorage.getItem('devcols') || '{}'); } catch (e) { return {}; }
 }
 function applyDeviceCols() {
   const state = _devColState();
-  document.querySelectorAll('[data-col]').forEach(function (el) {
-    const k = el.getAttribute('data-col');
-    el.style.display = (state[k] === false) ? 'none' : '';
+  document.querySelectorAll('th[data-col]').forEach(function (th) {
+    const k = th.getAttribute('data-col');
+    th.style.display = (state[k] === false && !_colsEdit) ? 'none' : '';
   });
-  document.querySelectorAll('#colsMenuItems input[data-colkey]').forEach(function (cb) {
-    cb.checked = state[cb.getAttribute('data-colkey')] !== false;
+  document.querySelectorAll('td[data-col]').forEach(function (td) {
+    const k = td.getAttribute('data-col');
+    td.style.display = (state[k] === false) ? 'none' : '';
   });
+  document.querySelectorAll('input[data-colchk]').forEach(function (cb) {
+    const k = cb.getAttribute('data-colchk');
+    cb.checked = state[k] !== false;
+    cb.style.display = _colsEdit ? 'inline-block' : 'none';
+  });
+  const r = document.getElementById('colsReset');
+  if (r) r.style.display = _colsEdit ? '' : 'none';
 }
-function toggleDeviceCol(cb) {
+function toggleColsEdit() {
+  _colsEdit = !_colsEdit;
+  applyDeviceCols();
+}
+function onColChk(cb) {
   const state = _devColState();
-  state[cb.getAttribute('data-colkey')] = cb.checked;
+  state[cb.getAttribute('data-colchk')] = cb.checked;
   localStorage.setItem('devcols', JSON.stringify(state));
   applyDeviceCols();
 }
 function resetDeviceCols() {
   localStorage.removeItem('devcols');
   applyDeviceCols();
-}
-function toggleColsMenu() {
-  const m = document.getElementById('colsMenu');
-  if (m) m.style.display = (m.style.display === 'none' ? '' : 'none');
 }
 (function () {
   if (document.querySelector('[data-col]')) applyDeviceCols();

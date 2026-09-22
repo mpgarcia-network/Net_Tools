@@ -8,24 +8,6 @@
   </div>
 </div>
 
-<div id="colsMenu" class="card" style="display:none">
-  <div class="row between">
-    <strong>{{ t('dev.columns') }}</strong>
-    <button class="link" type="button" onclick="resetDeviceCols()">{{ t('dev.cols_reset') }}</button>
-  </div>
-  <p class="muted">{{ t('dev.cols_hint') }}</p>
-  <div class="grid2" id="colsMenuItems">
-    {% for key, label in [
-      ('name', t('c.name')), ('ip', t('c.ip')), ('vendor', t('c.vendor')),
-      ('model', t('df.model')), ('device_type', t('c.driver')), ('protocol', t('c.protocol')),
-      ('port', t('c.port')), ('username', t('c.username')), ('tags', t('c.tags')),
-      ('site_role', t('df.site_role')), ('enabled', t('c.active'))
-    ] %}
-    <label class="chk"><input type="checkbox" data-colkey="{{ key }}" checked onchange="toggleDeviceCol(this)"> {{ label }}</label>
-    {% endfor %}
-  </div>
-</div>
-
 {% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
 {% if import_errors %}
 <div class="card">
@@ -146,10 +128,10 @@
 {% set qs = 'q=' ~ (q|urlencode) ~ '&vendor=' ~ (vendor|urlencode) ~ '&driver=' ~ (driver|urlencode) ~ '&protocol=' ~ (protocol|urlencode) ~ '&active=' ~ (active|urlencode) ~ '&site_role=' ~ (site_role|urlencode) %}
 {% macro th(field, label) -%}
 {% set nd = 'desc' if (sort == field and dir == 'asc') else 'asc' %}
-<th data-col="{{ field }}"><a href="/devices?{{ qs }}&sort={{ field }}&dir={{ nd }}">{{ label }}{% if sort == field %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a></th>
+<th data-col="{{ field }}"><input type="checkbox" class="colchk" data-colchk="{{ field }}" style="display:none" onchange="onColChk(this)" title="{{ t('dev.columns') }}"><a href="/devices?{{ qs }}&sort={{ field }}&dir={{ nd }}">{{ label }}{% if sort == field %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a></th>
 {%- endmacro %}
 <div class="row" style="align-items:center; gap:8px">
-  <button class="btn" type="button" onclick="toggleColsMenu()" title="{{ t('dev.columns') }}">
+  <button class="btn" type="button" onclick="toggleColsEdit()" title="{{ t('dev.columns') }}">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
          style="vertical-align:-2px">
@@ -157,6 +139,7 @@
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
     </svg>
   </button>
+  <button class="link" type="button" id="colsReset" style="display:none" onclick="resetDeviceCols()">{{ t('dev.cols_reset') }}</button>
   <p class="muted" style="margin:0">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
 </div>
 <table>
