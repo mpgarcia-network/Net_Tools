@@ -40,11 +40,15 @@ function toggleDiff(id) {
   if (el) el.style.display = (el.style.display === 'none' ? '' : 'none');
 }
 
-// Devices: engrenagem liga o modo de colunas; checkbox ao lado de cada coluna.
-// Ao desmarcar, a coluna e' ocultada (fica salvo no navegador).
+// Devices: a engrenagem abre o modo de colunas. As mudancas ficam "staged"
+// (nao aplicam na hora); so' aplicam quando a engrenagem e' clicada de novo.
 let _colsEdit = localStorage.getItem('devcols_edit') === '1';
+let _colsStaged = null;
 function _devColState() {
   try { return JSON.parse(localStorage.getItem('devcols') || '{}'); } catch (e) { return {}; }
+}
+function _colsWorking() {
+  return (_colsEdit && _colsStaged) ? _colsStaged : _devColState();
 }
 function applyDeviceCols() {
   const state = _devColState();
@@ -56,27 +60,37 @@ function applyDeviceCols() {
     const k = td.getAttribute('data-col');
     td.style.display = (state[k] === false) ? 'none' : '';
   });
+  const work = _colsWorking();
   document.querySelectorAll('input[data-colchk]').forEach(function (cb) {
     const k = cb.getAttribute('data-colchk');
-    cb.checked = state[k] !== false;
+    cb.checked = work[k] !== false;
     cb.style.display = _colsEdit ? 'inline-block' : 'none';
   });
   const r = document.getElementById('colsReset');
   if (r) r.style.display = _colsEdit ? '' : 'none';
 }
 function toggleColsEdit() {
-  _colsEdit = !_colsEdit;
+  if (!_colsEdit) {
+    _colsEdit = true;
+    _colsStaged = Object.assign({}, _devColState());
+  } else {
+    _colsEdit = false;
+    localStorage.setItem('devcols', JSON.stringify(_colsStaged || _devColState()));
+    _colsStaged = null;
+  }
   localStorage.setItem('devcols_edit', _colsEdit ? '1' : '0');
   applyDeviceCols();
 }
 function onColChk(cb) {
-  const state = _devColState();
-  state[cb.getAttribute('data-colchk')] = cb.checked;
-  localStorage.setItem('devcols', JSON.stringify(state));
-  applyDeviceCols();
+  if (!_colsStaged) _colsStaged = Object.assign({}, _devColState());
+  _colsStaged[cb.getAttribute('data-colchk')] = cb.checked;
 }
 function resetDeviceCols() {
-  localStorage.removeItem('devcols');
+  if (_colsEdit) {
+    _colsStaged = {};
+  } else {
+    localStorage.removeItem('devcols');
+  }
   applyDeviceCols();
 }
 (function () {
