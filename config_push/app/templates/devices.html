@@ -3,14 +3,6 @@
 <div class="row between">
   <h1>{{ t('dev.title') }}</h1>
   <div>
-    <button class="btn" type="button" onclick="toggleColsMenu()" title="{{ t('dev.columns') }}">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
-           style="vertical-align:-2px">
-        <circle cx="12" cy="12" r="3"></circle>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-      </svg>
-    </button>
     <a class="btn" href="/devices/template.xlsx">{{ t('dev.download_template') }}</a>
     <a class="btn primary" href="/devices/new">{{ t('dev.new') }}</a>
   </div>
@@ -156,7 +148,17 @@
 {% set nd = 'desc' if (sort == field and dir == 'asc') else 'asc' %}
 <th data-col="{{ field }}"><a href="/devices?{{ qs }}&sort={{ field }}&dir={{ nd }}">{{ label }}{% if sort == field %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a></th>
 {%- endmacro %}
-<p class="muted">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
+<div class="row" style="align-items:center; gap:8px">
+  <button class="btn" type="button" onclick="toggleColsMenu()" title="{{ t('dev.columns') }}">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+         style="vertical-align:-2px">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+  </button>
+  <p class="muted" style="margin:0">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
+</div>
 <table>
   <thead><tr>{{ th('id', '#') }}{{ th('name', t('c.name')) }}{{ th('ip', t('c.ip')) }}{{ th('vendor', t('c.vendor')) }}{{ th('model', t('df.model')) }}{{ th('device_type', t('c.driver')) }}{{ th('protocol', t('c.protocol')) }}{{ th('port', t('c.port')) }}{{ th('username', t('c.username')) }}{{ th('tags', t('c.tags')) }}{{ th('site_role', t('df.site_role')) }}{{ th('enabled', t('c.active')) }}<th></th></tr></thead>
   <tbody>
