@@ -1,5 +1,19 @@
 # Changelog — Net Tools
 
+## v0.4.0 — 2026-09-21
+
+**Papéis de equipamento + níveis de operador (alçada)**
+- Campo **papel no site** no device: Acesso, TOR, Distribuição, Core, Firewall
+  (vazio = não classificado). Filtro/ordenação/edição em massa por papel.
+- Novos papéis de usuário: **Operador Básico / Médio / Avançado** (substituem o
+  genérico `operator`; migração automática dos usuários existentes).
+- **Alçada por hierarquia** (Core > Distribuição/TOR > Acesso; Firewall = avançado):
+  - Básico → só Acesso · Médio → Acesso/TOR/Distribuição · Avançado → tudo.
+  - **Fail-closed**: device sem papel só é alvo de Avançado/Admin.
+- Enforcement no servidor em criação de execução, agendamentos, retry/rerun e no
+  scheduler (revalida pelo papel atual de quem criou). Gestão de devices/modelos
+  restrita a Avançado/Admin.
+
 ## v0.3.0 — 2026-09-21
 
 **Conformidade / Drift (Golden config)**

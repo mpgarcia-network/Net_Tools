@@ -15,6 +15,9 @@ diff, aprovação, agendamento, auditoria e compliance, multi-vendor (Netmiko).
 - Execução em lote com **simulação (dry-run)** ou aplicação real; **diff antes/depois**.
 - Aprovação, agendamento (cron/once), auditoria e RBAC.
 - Credencial padrão global (TACACS/AAA) e/ou por device.
+- **Papel no site** por device (Acesso / TOR / Distribuição / Core / Firewall) e
+  **níveis de operador** (Básico / Médio / Avançado) com **alçada por hierarquia**
+  (Core > Distribuição/TOR > Acesso; Firewall = avançado; não classificado = avançado).
 
 **Conformidade / Drift (Golden config)**
 - Políticas com regras **require** (deve existir), **forbid** (não pode existir) e
