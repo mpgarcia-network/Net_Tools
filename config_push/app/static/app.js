@@ -42,7 +42,7 @@ function toggleDiff(id) {
 
 // Devices: engrenagem liga o modo de colunas; checkbox ao lado de cada coluna.
 // Ao desmarcar, a coluna e' ocultada (fica salvo no navegador).
-let _colsEdit = false;
+let _colsEdit = localStorage.getItem('devcols_edit') === '1';
 function _devColState() {
   try { return JSON.parse(localStorage.getItem('devcols') || '{}'); } catch (e) { return {}; }
 }
@@ -66,6 +66,7 @@ function applyDeviceCols() {
 }
 function toggleColsEdit() {
   _colsEdit = !_colsEdit;
+  localStorage.setItem('devcols_edit', _colsEdit ? '1' : '0');
   applyDeviceCols();
 }
 function onColChk(cb) {
