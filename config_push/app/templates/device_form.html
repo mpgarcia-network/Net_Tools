@@ -48,6 +48,7 @@
     <label>{{ t('df.enable') }}
       <input type="password" name="enable_password" autocomplete="new-password"></label>
     <label>{{ t('df.tags') }}<input name="tags" value="{{ device.tags if device else '' }}"></label>
+    <label>{{ t('df.site') }}<input name="site" value="{{ device.site if device else '' }}"></label>
     <label>{{ t('df.site_role') }}
       <select name="site_role">
         <option value="">{{ t('site.none') }}</option>

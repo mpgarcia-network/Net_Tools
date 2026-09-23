@@ -60,6 +60,11 @@ def utcnow() -> datetime:
 def ensure_schema() -> None:
     """Ajustes leves de schema (SQLite) para upgrades sem perder dados."""
     insp = inspect(engine)
+    if "topo_layout" in insp.get_table_names():
+        tcols = {c["name"] for c in insp.get_columns("topo_layout")}
+        with engine.begin() as conn:
+            if "pinned" not in tcols:
+                conn.execute(text("ALTER TABLE topo_layout ADD COLUMN pinned BOOLEAN DEFAULT 1"))
     if "devices" in insp.get_table_names():
         cols = {c["name"] for c in insp.get_columns("devices")}
         with engine.begin() as conn:
@@ -73,6 +78,8 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"))
             if "external_id" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN external_id VARCHAR(191) DEFAULT ''"))
+            if "site" not in cols:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN site VARCHAR(80) DEFAULT ''"))
             if "site_role" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN site_role VARCHAR(20) DEFAULT ''"))
     if "snippets" in insp.get_table_names():

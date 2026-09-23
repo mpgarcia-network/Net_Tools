@@ -556,6 +556,7 @@ def devices_list(
     driver: str = "",
     protocol: str = "",
     active: str = "",
+    site: str = "",
     site_role: str = "",
     sort: str = "name",
     dir: str = "asc",
@@ -574,6 +575,7 @@ def devices_list(
         "port": Device.port,
         "username": Device.username,
         "tags": Device.tags,
+        "site": Device.site,
         "site_role": Device.site_role,
         "enabled": Device.enabled,
     }
@@ -595,6 +597,8 @@ def devices_list(
         conds.append(Device.protocol == protocol.strip())
     if active in ("1", "0"):
         conds.append(Device.enabled == (active == "1"))
+    if site.strip():
+        conds.append(Device.site == site.strip())
     if site_role == "_none":
         conds.append(Device.site_role == "")
     elif site_role.strip():
@@ -616,6 +620,13 @@ def devices_list(
             ).all()
             if d
         ]
+        sites = [
+            s
+            for s in db.scalars(
+                select(Device.site).distinct().order_by(Device.site)
+            ).all()
+            if s
+        ]
     finally:
         db.close()
     pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
@@ -628,6 +639,7 @@ def devices_list(
         driver=driver,
         protocol=protocol,
         active=active,
+        site=site,
         site_role=site_role,
         page=page,
         pages=pages,
@@ -635,6 +647,7 @@ def devices_list(
         vendors=list(VENDORS.keys()),
         drivers=driver_opts,
         site_roles=SITE_ROLES,
+        sites=sites,
         sort=sort,
         dir=dir,
     )
@@ -674,6 +687,7 @@ def device_save(
     password: str = Form(""),
     enable_password: str = Form(""),
     tags: str = Form(""),
+    site: str = Form(""),
     site_role: str = Form(""),
     enabled: str = Form(""),
 ):
@@ -721,6 +735,7 @@ def device_save(
         if enable_password:
             device.enable_password_enc = encrypt_secret(enable_password)
         device.tags = tags.strip()
+        device.site = site.strip()
         device.site_role = normalize_site_role(site_role)
         device.enabled = bool(enabled)
         audit(db, user["name"], "device_save", f"{device.name} ({device.ip})")
@@ -805,11 +820,13 @@ def devices_bulk_edit(
     scope_driver: str = Form(""),
     scope_protocol: str = Form(""),
     scope_active: str = Form(""),
+    scope_site: str = Form(""),
     scope_site_role: str = Form(""),
     port: str = Form(""),
     protocol: str = Form(""),
     device_type: str = Form(""),
     tags: str = Form(""),
+    site: str = Form(""),
     site_role: str = Form(""),
     enabled: str = Form(""),
     username: str = Form(""),
@@ -833,6 +850,8 @@ def devices_bulk_edit(
         conds.append(Device.protocol == scope_protocol.strip())
     if scope_active in ("1", "0"):
         conds.append(Device.enabled == (scope_active == "1"))
+    if scope_site.strip():
+        conds.append(Device.site == scope_site.strip())
     if scope_site_role == "_none":
         conds.append(Device.site_role == "")
     elif scope_site_role.strip():
@@ -842,6 +861,7 @@ def devices_bulk_edit(
         or protocol.strip()
         or device_type.strip()
         or tags.strip()
+        or site.strip()
         or site_role.strip()
         or enabled != ""
         or username.strip()
@@ -873,6 +893,8 @@ def devices_bulk_edit(
                 d.device_type = device_type.strip()
             if tags.strip():
                 d.tags = tags.strip()
+            if site.strip():
+                d.site = site.strip()
             if site_role.strip():
                 d.site_role = normalize_site_role(site_role)
             if enabled != "":
@@ -891,7 +913,7 @@ def devices_bulk_edit(
             f"scope_vendor={scope_vendor} scope_q={scope_q} scope_driver={scope_driver} "
             f"scope_protocol={scope_protocol} scope_active={scope_active} n={n} "
             f"port={port} protocol={protocol} driver={device_type} tags={tags} "
-            f"site_role={site_role} enabled={enabled} "
+            f"site={site} site_role={site_role} enabled={enabled} "
             f"username={username} password={'set' if password else '-'} "
             f"enable={'set' if enable_password else '-'}",
         )

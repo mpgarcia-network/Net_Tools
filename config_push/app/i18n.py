@@ -140,6 +140,7 @@ T: dict[str, dict[str, str]] = {
     "df.password_keep": {"pt": "(deixe vazio p/ manter)", "en": "(leave blank to keep)", "es": "(dejar vacío para mantener)"},
     "df.enable": {"pt": "Senha de enable (opcional — HP/3Com system-view, Cisco enable)", "en": "Enable password (optional — HP/3Com system-view, Cisco enable)", "es": "Contraseña de enable (opcional — HP/3Com system-view, Cisco enable)"},
     "df.tags": {"pt": "Tags (vírgula)", "en": "Tags (comma)", "es": "Etiquetas (coma)"},
+    "df.site": {"pt": "Site", "en": "Site", "es": "Sitio"},
     "df.site_role": {"pt": "Camada", "en": "Layer", "es": "Capa"},
     "df.enabled": {"pt": "Ativo", "en": "Active", "es": "Activo"},
     "df.test": {"pt": "Testar conexão", "en": "Test connection", "es": "Probar conexión"},

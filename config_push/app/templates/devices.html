@@ -66,6 +66,12 @@
         <option value="0" {{ 'selected' if active == '0' }}>{{ t('c.no') }}</option>
       </select>
     </label>
+    <label>{{ t('df.site') }}
+      <select name="site">
+        <option value="">{{ t('bulk.any') }}</option>
+        {% for s in sites %}<option value="{{ s }}" {{ 'selected' if site == s }}>{{ s }}</option>{% endfor %}
+      </select>
+    </label>
     <label>{{ t('df.site_role') }}
       <select name="site_role">
         <option value="">{{ t('bulk.any') }}</option>
@@ -91,6 +97,7 @@
     <input type="hidden" name="scope_driver" value="{{ driver }}">
     <input type="hidden" name="scope_protocol" value="{{ protocol }}">
     <input type="hidden" name="scope_active" value="{{ active }}">
+    <input type="hidden" name="scope_site" value="{{ site }}">
     <input type="hidden" name="scope_site_role" value="{{ site_role }}">
     <div class="grid2">
       <label>{{ t('df.port') }}<input type="number" name="port" placeholder="{{ t('bulk.keep') }}"></label>
@@ -103,6 +110,7 @@
       </label>
       <label>{{ t('c.driver') }}<input name="device_type" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('c.tags') }}<input name="tags" placeholder="{{ t('bulk.keep') }}"></label>
+      <label>{{ t('df.site') }}<input name="site" placeholder="{{ t('bulk.keep') }}"></label>
       <label>{{ t('df.site_role') }}
         <select name="site_role">
           <option value="">{{ t('bulk.keep') }}</option>
@@ -125,7 +133,7 @@
 </details>
 {% endif %}
 
-{% set qs = 'q=' ~ (q|urlencode) ~ '&vendor=' ~ (vendor|urlencode) ~ '&driver=' ~ (driver|urlencode) ~ '&protocol=' ~ (protocol|urlencode) ~ '&active=' ~ (active|urlencode) ~ '&site_role=' ~ (site_role|urlencode) %}
+{% set qs = 'q=' ~ (q|urlencode) ~ '&vendor=' ~ (vendor|urlencode) ~ '&driver=' ~ (driver|urlencode) ~ '&protocol=' ~ (protocol|urlencode) ~ '&active=' ~ (active|urlencode) ~ '&site=' ~ (site|urlencode) ~ '&site_role=' ~ (site_role|urlencode) %}
 {% macro th(field, label) -%}
 {% set nd = 'desc' if (sort == field and dir == 'asc') else 'asc' %}
 <th data-col="{{ field }}"><input type="checkbox" class="colchk" data-colchk="{{ field }}" style="display:none" onchange="onColChk(this)" title="{{ t('dev.columns') }}"><a href="/devices?{{ qs }}&sort={{ field }}&dir={{ nd }}">{{ label }}{% if sort == field %} {{ '▲' if dir == 'asc' else '▼' }}{% endif %}</a></th>
@@ -143,7 +151,7 @@
   <p class="muted" style="margin:0">{{ t('c.devices_count', n=total) }} — {{ t('c.page_info', p=page, n=pages) }}.</p>
 </div>
 <table>
-  <thead><tr>{{ th('id', '#') }}{{ th('name', t('c.name')) }}{{ th('ip', t('c.ip')) }}{{ th('vendor', t('c.vendor')) }}{{ th('model', t('df.model')) }}{{ th('device_type', t('c.driver')) }}{{ th('protocol', t('c.protocol')) }}{{ th('port', t('c.port')) }}{{ th('username', t('c.username')) }}{{ th('tags', t('c.tags')) }}{{ th('site_role', t('df.site_role')) }}{{ th('enabled', t('c.active')) }}<th></th></tr></thead>
+  <thead><tr>{{ th('id', '#') }}{{ th('name', t('c.name')) }}{{ th('ip', t('c.ip')) }}{{ th('vendor', t('c.vendor')) }}{{ th('model', t('df.model')) }}{{ th('device_type', t('c.driver')) }}{{ th('protocol', t('c.protocol')) }}{{ th('port', t('c.port')) }}{{ th('username', t('c.username')) }}{{ th('tags', t('c.tags')) }}{{ th('site', t('df.site')) }}{{ th('site_role', t('df.site_role')) }}{{ th('enabled', t('c.active')) }}<th></th></tr></thead>
   <tbody>
   {% for d in devices %}
     <tr>
@@ -157,6 +165,7 @@
       <td data-col="port">{{ d.port }}</td>
       <td data-col="username">{{ d.username }}</td>
       <td data-col="tags">{{ d.tags }}</td>
+      <td data-col="site">{{ d.site }}</td>
       <td data-col="site_role">{{ t('site.' ~ d.site_role) if d.site_role else t('site.none') }}</td>
       <td data-col="enabled">{{ t('c.yes') if d.enabled else t('c.no') }}</td>
       <td class="nowrap">
@@ -169,7 +178,7 @@
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="13" class="muted">{{ t('dev.empty') }}</td></tr>
+    <tr><td colspan="14" class="muted">{{ t('dev.empty') }}</td></tr>
   {% endfor %}
   </tbody>
 </table>
