@@ -734,6 +734,7 @@ def device_save(
     tags: str = Form(""),
     site: str = Form(""),
     site_role: str = Form(""),
+    pre_commands: str = Form(""),
     enabled: str = Form(""),
 ):
     user = require_role(request, MANAGE_ROLES)
@@ -782,6 +783,7 @@ def device_save(
         device.tags = tags.strip()
         device.site = site.strip()
         device.site_role = normalize_site_role(site_role)
+        device.pre_commands = pre_commands.strip()
         device.enabled = bool(enabled)
         audit(db, user["name"], "device_save", f"{device.name} ({device.ip})")
         db.commit()
@@ -2292,6 +2294,7 @@ def settings_page(request: Request):
             "smtp_tls": s.smtp_tls,
             "smtp_ssl": s.smtp_ssl,
             "smtp_from": s.smtp_from,
+            "pre_commands": s.pre_commands,
             "auth_mode": s.auth_mode,
             "ldap_server": s.ldap_server,
             "ldap_domain": s.ldap_domain,
@@ -2323,6 +2326,21 @@ def settings_notify(request: Request, notify_webhook_url: str = Form("")):
         s = get_settings(db)
         s.notify_webhook_url = notify_webhook_url.strip()
         audit(db, actor["name"], "settings_notify", s.notify_webhook_url or "(vazio)")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/pre-commands")
+def settings_pre_commands(request: Request, pre_commands: str = Form("")):
+    """Pre-comandos globais (rodam em todos os devices, antes da config)."""
+    actor = require_role(request, {"admin"})
+    db = SessionLocal()
+    try:
+        s = get_settings(db)
+        s.pre_commands = pre_commands.strip()
+        audit(db, actor["name"], "settings_pre_commands", "global")
         db.commit()
     finally:
         db.close()

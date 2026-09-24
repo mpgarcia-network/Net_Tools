@@ -17,7 +17,7 @@ from dulwich.repo import Repo
 from netmiko import ConnectHandler
 
 from .config import settings
-from .engine import _read_config, build_conn
+from .engine import _read_config, build_conn, run_pre_commands
 
 BACKUP_DIR: Path = settings.data_dir / "configs"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -52,6 +52,7 @@ def collect(device: dict) -> tuple[str, str]:
                 ssh.enable()
             except Exception:  # noqa: BLE001
                 pass
+        run_pre_commands(ssh, device.get("pre_commands", ""))
         cfg = _read_config(ssh, device_type)
     return cfg, device_type
 

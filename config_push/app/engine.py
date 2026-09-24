@@ -173,6 +173,7 @@ def save_config(device: dict) -> dict:
                     ssh.enable()
                 except Exception as e:  # noqa: BLE001
                     output_parts.append(f"[enable] aviso: {e}")
+            output_parts += run_pre_commands(ssh, device.get("pre_commands", ""))
             out = ssh.send_command_timing(cmd, read_timeout=settings.conn_timeout * 4)
             output_parts.append(out)
             # deteccao simples de erro nas respostas mais comuns
@@ -195,6 +196,28 @@ def save_config(device: dict) -> dict:
         return {"status": "failed", "output": "\n".join(output_parts), "error": str(e)[:500]}
     finally:
         _GLOBAL_SEM.release()
+
+
+def run_pre_commands(ssh, pre_commands: str) -> list[str]:
+    """Executa os pre-comandos (ex.: _cmdline-mode on / Y / senha) apos conectar.
+
+    Usa send_command_timing (comandos interativos com prompts). Um por linha.
+    Devolve as linhas para o output do run.
+    """
+    out_lines: list[str] = []
+    lines = [ln.rstrip() for ln in (pre_commands or "").splitlines()]
+    lines = [ln for ln in lines if ln.strip() and not ln.strip().startswith("#")]
+    if not lines:
+        return out_lines
+    out_lines.append("[pre] executando comandos de preparacao")
+    for cmd in lines:
+        try:
+            out = ssh.send_command_timing(cmd, read_timeout=settings.conn_timeout * 2)
+            out_lines.append(f"$ {cmd}\n{out}")
+        except Exception as e:  # noqa: BLE001
+            out_lines.append(f"$ {cmd}\n[erro no pre-comando: {e}]")
+        time.sleep(0.5)
+    return out_lines
 
 
 def _read_config(ssh, device_type: str) -> str:
@@ -345,6 +368,7 @@ def apply_to_device(
                     output_parts.append("[enable] modo privilegiado ativado")
                 except Exception as e:  # noqa: BLE001
                     output_parts.append(f"[enable] aviso: {e}")
+            output_parts += run_pre_commands(ssh, device.get("pre_commands", ""))
             before = _read_config(ssh, device_type) if capture_diff else ""
             if dry_run:
                 # dry-run "real": valida a conexao e mostra a config atual

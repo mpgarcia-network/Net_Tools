@@ -49,6 +49,9 @@
       <input type="password" name="enable_password" autocomplete="new-password"></label>
     <label>{{ t('df.tags') }}<input name="tags" value="{{ device.tags if device else '' }}"></label>
     <label>{{ t('df.site') }}<input name="site" value="{{ device.site if device else '' }}"></label>
+    <label>{{ t('df.pre_commands') }}
+      <textarea name="pre_commands" rows="3" spellcheck="false" placeholder="_cmdline-mode on&#10;Y&#10;1920">{{ device.pre_commands if device else '' }}</textarea>
+    </label>
     <label>{{ t('df.site_role') }}
       <select name="site_role">
         <option value="">{{ t('site.none') }}</option>

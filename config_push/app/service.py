@@ -164,6 +164,9 @@ def effective_credentials(db, device: Device) -> tuple[str, str, str]:
 
 def device_dict(db, device: Device, target=None) -> dict:
     username, password_enc, enable_enc = effective_credentials(db, device)
+    s = db.get(Setting, 1)
+    global_pre = (s.pre_commands if s else "") or ""
+    pre = "\n".join(x for x in ((device.pre_commands or "").strip(), global_pre.strip()) if x)
     data = {
         "_target_id": target.id if target is not None else None,
         "name": device.name,
@@ -175,6 +178,7 @@ def device_dict(db, device: Device, target=None) -> dict:
         "username": username,
         "password_enc": password_enc,
         "enable_password_enc": enable_enc,
+        "pre_commands": pre,
     }
     if target is not None and target.commands:
         data["commands"] = target.commands

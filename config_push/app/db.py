@@ -80,6 +80,8 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN external_id VARCHAR(191) DEFAULT ''"))
             if "site" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN site VARCHAR(80) DEFAULT ''"))
+            if "pre_commands" not in cols:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN pre_commands TEXT DEFAULT ''"))
             if "site_role" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN site_role VARCHAR(20) DEFAULT ''"))
     if "snippets" in insp.get_table_names():
@@ -134,6 +136,7 @@ def ensure_schema() -> None:
                     text("ALTER TABLE settings ADD COLUMN notify_webhook_url VARCHAR(500) DEFAULT ''")
                 )
             for col, ddl in (
+                ("pre_commands", "TEXT DEFAULT ''"),
                 ("auth_mode", "VARCHAR(10) DEFAULT 'local'"),
                 ("ldap_server", "VARCHAR(255) DEFAULT ''"),
                 ("ldap_domain", "VARCHAR(120) DEFAULT ''"),

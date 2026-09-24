@@ -50,6 +50,9 @@ class Device(Base):
     enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[str] = mapped_column(String(255), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Comandos executados logo apos conectar, antes da config (ex.: _cmdline-mode on
+    # + Y + senha, em Comware antigos). Um comando por linha.
+    pre_commands: Mapped[str] = mapped_column(Text, default="")
     # Site/local fisico (ex.: HU1, CB, ADM). Separado da camada (site_role).
     site: Mapped[str] = mapped_column(String(80), default="", index=True)
     # Camada: acesso | tor | distribuicao | core | firewall ("" = nao classificado)
@@ -283,6 +286,8 @@ class Setting(Base):
     default_enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     # webhook para notificacao (Teams/Slack/generico). Vazio = desligado.
     notify_webhook_url: Mapped[str] = mapped_column(String(500), default="")
+    # Pre-comandos globais (rodam em todos os devices, antes da config).
+    pre_commands: Mapped[str] = mapped_column(Text, default="")
     # Autenticacao: local | ldap | both (local + AD)
     auth_mode: Mapped[str] = mapped_column(String(10), default="local")
     ldap_server: Mapped[str] = mapped_column(String(255), default="")  # ldap://host:389
