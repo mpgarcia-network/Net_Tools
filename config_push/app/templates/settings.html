@@ -89,6 +89,7 @@
       <textarea name="ldap_role_map" rows="4" spellcheck="false">{{ settings.ldap_role_map }}</textarea>
     </label>
     <p class="muted">{{ t('set.ldap_role_map_hint') }}</p>
+    <p class="muted">{{ t('set.ldap_breakglass_hint') }}</p>
     <label>{{ t('set.ldap_default_role') }}
       <select name="ldap_default_role">
         {% for r in roles %}<option value="{{ r }}" {{ 'selected' if settings.ldap_default_role == r }}>{{ t('role.' ~ r) }}</option>{% endfor %}

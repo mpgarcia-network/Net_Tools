@@ -338,6 +338,7 @@ T: dict[str, dict[str, str]] = {
     "set.ldap_bind_password": {"pt": "Senha do bind", "en": "Bind password", "es": "Contraseña del bind"},
     "set.ldap_role_map": {"pt": "Mapa grupo → papel (JSON)", "en": "Group → role map (JSON)", "es": "Mapa grupo → rol (JSON)"},
     "set.ldap_role_map_hint": {"pt": "Ex.: {\"GRP-NOC-Admin\":\"admin\",\"GRP-NOC-Avan\":\"operator_advanced\"}. O nome do grupo pode ser parcial (parte do DN).", "en": "E.g.: {\"GRP-NOC-Admin\":\"admin\"}. The group name may be partial (part of the DN).", "es": "Ej.: {\"GRP-NOC-Admin\":\"admin\"}. El nombre puede ser parcial (parte del DN)."},
+    "set.ldap_breakglass_hint": {"pt": "No modo \"Somente AD/LDAP\", apenas o usuário admin local consegue entrar com senha local (emergência, evita ficar travado fora).", "en": "In \"AD/LDAP only\" mode, only the local admin can sign in with a local password (break-glass, avoids lockout).", "es": "En modo \"Solo AD/LDAP\", solo el admin local puede entrar con contraseña local (emergencia, evita quedar bloqueado)."},
     "set.ldap_default_role": {"pt": "Papel padrão (sem grupo)", "en": "Default role (no group)", "es": "Rol por defecto (sin grupo)"},
     "set.ldap_save": {"pt": "Salvar LDAP", "en": "Save LDAP", "es": "Guardar LDAP"},
     "set.ldap_test": {"pt": "Testar bind", "en": "Test bind", "es": "Probar bind"},

@@ -398,8 +398,20 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     db = SessionLocal()
     try:
         user = db.scalar(select(User).where(User.username == username))
+        st = get_settings(db)
+        auth_mode = st.auth_mode or "local"
+        # login local e' permitido em 'local'/'both' sempre; em 'ldap' (somente AD)
+        # apenas o admin local (break-glass) pode entrar com senha local.
+        local_allowed = auth_mode in ("local", "both") or (
+            user is not None and user.role == "admin"
+        )
         # 1) autenticacao local (banco)
-        if user and user.active and verify_password(password, user.password_hash):
+        if (
+            local_allowed
+            and user
+            and user.active
+            and verify_password(password, user.password_hash)
+        ):
             _login_clear(key)
             request.session["user"] = {"name": user.username, "role": user.role}
             audit(db, user.username, "login", "ok (local)")
@@ -407,8 +419,7 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
             return RedirectResponse("/", status_code=303)
 
         # 2) autenticacao via AD/LDAP (se habilitada), com provisao do usuario
-        st = get_settings(db)
-        if (st.auth_mode or "local") in ("ldap", "both"):
+        if auth_mode in ("ldap", "both"):
             from .auth_ldap import authenticate as ldap_auth
 
             info = ldap_auth(username, password)
