@@ -108,6 +108,8 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE users ADD COLUMN theme VARCHAR(10) DEFAULT 'dark'"))
             if "language" not in ucols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN language VARCHAR(5) DEFAULT 'pt'"))
+            if "email" not in ucols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(191) DEFAULT ''"))
     if "settings" in insp.get_table_names():
         setcols = {c["name"] for c in insp.get_columns("settings")}
         with engine.begin() as conn:
@@ -127,6 +129,17 @@ def ensure_schema() -> None:
                 conn.execute(
                     text("ALTER TABLE settings ADD COLUMN notify_webhook_url VARCHAR(500) DEFAULT ''")
                 )
+            for col, ddl in (
+                ("smtp_host", "VARCHAR(255) DEFAULT ''"),
+                ("smtp_port", "INTEGER DEFAULT 587"),
+                ("smtp_user", "VARCHAR(255) DEFAULT ''"),
+                ("smtp_password_enc", "TEXT DEFAULT ''"),
+                ("smtp_tls", "BOOLEAN DEFAULT 1"),
+                ("smtp_ssl", "BOOLEAN DEFAULT 0"),
+                ("smtp_from", "VARCHAR(255) DEFAULT ''"),
+            ):
+                if col not in setcols:
+                    conn.execute(text(f"ALTER TABLE settings ADD COLUMN {col} {ddl}"))
             for col, ddl in (
                 ("librenms_url", "VARCHAR(500) DEFAULT ''"),
                 ("librenms_token_enc", "TEXT DEFAULT ''"),

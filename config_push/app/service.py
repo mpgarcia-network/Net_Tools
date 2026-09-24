@@ -10,7 +10,7 @@ from sqlalchemy import select
 from .config import settings
 from .db import SessionLocal, utcnow
 from .engine import run_batch
-from .models import AuditLog, Backup, Device, Run, RunTarget, Schedule, Setting
+from .models import AuditLog, Backup, Device, Run, RunTarget, Schedule, Setting, User
 
 log = logging.getLogger("app.service")
 
@@ -54,16 +54,80 @@ def _post_json(url: str, payload: dict) -> None:
 
 
 def notify(payload: dict) -> None:
+    """Dispara webhook (se configurado) + e-mail (se SMTP configurado).
+
+    O e-mail e' roteado conforme ``payload['event']``:
+    - run_finished / run_approved / run_rejected -> para o solicitante (e admin).
+    - run_pending_approval -> para aprovadores + admin.
+    """
     s = SessionLocal()
     try:
         st = s.get(Setting, 1)
         url = (st.notify_webhook_url if st else "") or ""
     finally:
         s.close()
-    if not url:
-        return
     payload.setdefault("app", settings.app_name)
-    threading.Thread(target=_post_json, args=(url, payload), daemon=True).start()
+    if url:
+        threading.Thread(target=_post_json, args=(url, payload), daemon=True).start()
+    _email_event(payload)
+
+
+def _users_emails(db, roles: tuple[str, ...]) -> list[str]:
+    rows = db.scalars(
+        select(User).where(User.active == True, User.role.in_(roles))  # noqa: E712
+    ).all()
+    return [u.email for u in rows if getattr(u, "email", "")]
+
+
+def _email_event(payload: dict) -> None:
+    """Envia e-mail do evento, se SMTP configurado e houver destinatarios."""
+    from . import mailer
+
+    event = payload.get("event", "")
+    db = SessionLocal()
+    try:
+        to: list[str] = []
+        if event == "run_pending_approval":
+            to = _users_emails(db, ("admin", "approver"))
+        elif event in ("run_finished", "run_approved", "run_rejected", "run_created", "run_failed"):
+            who = payload.get("requested_by", "")
+            if who:
+                u = db.scalar(select(User).where(User.username == who))
+                if u and getattr(u, "email", ""):
+                    to.append(u.email)
+            if event in ("run_rejected", "run_failed"):
+                to += _users_emails(db, ("admin",))
+    finally:
+        db.close()
+    if not to:
+        return
+    to = sorted(set(to))
+    subject = f"[{settings.app_name}] {_subject_for(event, payload)}"
+    body = _body_for(event, payload)
+    mailer.send_async(to, subject, body)
+
+
+def _subject_for(event: str, p: dict) -> str:
+    rid = p.get("run_id", "?")
+    return {
+        "run_pending_approval": f"Execucao #{rid} aguardando aprovacao",
+        "run_finished": f"Execucao #{rid} concluida ({p.get('status', '')})",
+        "run_approved": f"Execucao #{rid} aprovada",
+        "run_rejected": f"Execucao #{rid} rejeitada",
+        "run_created": f"Execucao #{rid} criada",
+    }.get(event, f"Evento: {event}")
+
+
+def _body_for(event: str, p: dict) -> str:
+    lines = [f"Evento: {event}", f"Execucao: #{p.get('run_id', '?')}"]
+    for k in ("snippet", "status", "requested_by", "approved_by", "reason"):
+        if p.get(k):
+            lines.append(f"{k}: {p[k]}")
+    if p.get("counts"):
+        lines.append("resultado: " + ", ".join(f"{k}={v}" for k, v in p["counts"].items()))
+    lines.append("")
+    lines.append("-- Config Push")
+    return "\n".join(lines)
 
 
 def _notify_run(run: Run) -> None:
@@ -384,6 +448,76 @@ def start_backup_all_async(source: str = "manual", author: str = "") -> None:
     threading.Thread(
         target=collect_all_backups, args=(source, author), daemon=True
     ).start()
+
+
+def save_run_configs(run_id: int, author: str = "", only_target: int | None = None) -> dict:
+    """Salva (persiste) a config dos devices de um run que terminaram com sucesso.
+
+    Executa o comando de save adequado ao driver (wr mem / save / commit ...).
+    Grava o resultado no output do proprio alvo e na auditoria.
+
+    Devolve {ok: [nomes], failed: [(nome, erro)], skipped: [nomes]} — os
+    ``skipped`` sao os alvos que NAO tiveram sucesso (nao sao salvos).
+    ``only_target`` restringe a um unico alvo (botao por linha).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .engine import save_config
+
+    db = SessionLocal()
+    try:
+        run = db.get(Run, run_id)
+        if run is None:
+            return {"ok": [], "failed": [], "skipped": []}
+        rows = [
+            {"id": t.id, "device_id": t.device_id, "name": t.device_name, "status": t.status}
+            for t in run.targets
+        ]
+    finally:
+        db.close()
+
+    targets = [t for t in rows if only_target is None or t["id"] == only_target]
+    to_save = [t for t in targets if t["status"] == "success" and t["device_id"]]
+    skipped = [t["name"] for t in targets if t["status"] != "success"]
+
+    ok: list[str] = []
+    failed: list[tuple[str, str]] = []
+
+    def _one(t: dict) -> tuple[str, bool, str]:
+        s = SessionLocal()
+        try:
+            dev = s.get(Device, t["device_id"])
+            if dev is None:
+                return (t["name"], False, "device removido")
+            res = save_config(device_dict(s, dev))
+            tgt = s.get(RunTarget, t["id"])
+            if tgt is not None:
+                stamp = utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                tgt.output = (tgt.output or "") + (
+                    f"\n\n=== salvar config ({stamp}) ===\n"
+                    f"{res.get('output', '')}\n"
+                    + (f"[erro] {res['error']}" if res.get("error") else "[ok] config salva")
+                )[:20000]
+                s.commit()
+            audit(s, author or "save", "run_save_config", f"{dev.name} {res['status']}")
+            s.commit()
+            return (t["name"], res["status"] == "success", res.get("error", ""))
+        finally:
+            s.close()
+
+    if to_save:
+        workers = max(1, min(settings.max_workers, len(to_save)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for name, success, err in pool.map(_one, to_save):
+                if success:
+                    ok.append(name)
+                else:
+                    failed.append((name, err))
+    return {"ok": ok, "failed": failed, "skipped": skipped}
+
+
+def start_save_run_async(run_id: int, author: str = "") -> None:
+    threading.Thread(target=save_run_configs, args=(run_id, author), daemon=True).start()
 
 
 def schedule_next(schedule: Schedule) -> None:

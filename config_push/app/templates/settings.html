@@ -3,6 +3,9 @@
 <h1>{{ t('set.title') }}</h1>
 <p class="muted">{{ t('set.subtitle') }}</p>
 
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+{% if notice_error %}<p class="error">{{ notice_error }}</p>{% endif %}
+
 <div class="card">
   <h2>{{ t('set.cred_title') }}</h2>
   <p class="muted">{{ t('set.cred_hint') }}</p>
@@ -32,6 +35,31 @@
       <input name="notify_webhook_url" value="{{ settings.notify_webhook_url }}" placeholder="https://...">
     </label>
     <button class="btn primary" type="submit">{{ t('set.save_notify') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{ t('set.smtp_title') }}</h2>
+  <p class="muted">{{ t('set.smtp_hint') }}</p>
+  <form method="post" action="/settings/smtp">
+    <div class="grid2">
+      <label>{{ t('set.smtp_host') }}<input name="smtp_host" value="{{ settings.smtp_host }}" placeholder="smtp.exemplo.com"></label>
+      <label>{{ t('set.smtp_port') }}<input type="number" name="smtp_port" value="{{ settings.smtp_port or 587 }}"></label>
+      <label>{{ t('set.smtp_user') }}<input name="smtp_user" value="{{ settings.smtp_user }}" autocomplete="off"></label>
+      <label>{{ t('set.smtp_password') }}
+        <input type="password" name="smtp_password" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_smtp_password else t('set.not_set') }}">
+      </label>
+      <label>{{ t('set.smtp_from') }}<input name="smtp_from" value="{{ settings.smtp_from }}" placeholder="configpush@empresa.com"></label>
+    </div>
+    <label class="chk"><input type="checkbox" name="smtp_tls" value="1" {{ 'checked' if settings.smtp_tls }}> {{ t('set.smtp_tls') }}</label>
+    <label class="chk"><input type="checkbox" name="smtp_ssl" value="1" {{ 'checked' if settings.smtp_ssl }}> {{ t('set.smtp_ssl') }}</label>
+    <label class="chk"><input type="checkbox" name="clear_password" value="1"> {{ t('set.clear_password') }}</label>
+    <button class="btn primary" type="submit">{{ t('set.smtp_save') }}</button>
+  </form>
+  <form method="post" action="/settings/smtp/test" class="row" style="align-items:end; gap:8px; margin-top:8px">
+    <label style="flex:1">{{ t('set.smtp_test_to') }}<input type="email" name="to" placeholder="{{ settings.smtp_from or 'voce@empresa.com' }}"></label>
+    <button class="btn" type="submit">{{ t('set.smtp_test') }}</button>
   </form>
 </div>
 

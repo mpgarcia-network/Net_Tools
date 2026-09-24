@@ -74,6 +74,7 @@ from .service import (
     schedule_next,
     start_backup_all_async,
     start_run_async,
+    start_save_run_async,
 )
 from .settings_store import (
     branding,
@@ -1540,8 +1541,29 @@ def run_create(
         db.commit()
         run_id = run.id
         should_start = run.status == "approved"
+        run_status = run.status
+        run_snippet = run.snippet_name
     finally:
         db.close()
+    if run_status == "pending_approval":
+        notify(
+            {
+                "event": "run_pending_approval",
+                "run_id": run_id,
+                "snippet": run_snippet,
+                "requested_by": user["name"],
+            }
+        )
+    else:
+        notify(
+            {
+                "event": "run_created",
+                "run_id": run_id,
+                "status": run_status,
+                "snippet": run_snippet,
+                "requested_by": user["name"],
+            }
+        )
     if should_start:
         start_run_async(run_id)
     return RedirectResponse(f"/runs/{run_id}", status_code=303)
@@ -1563,7 +1585,15 @@ def run_detail(request: Request, run_id: int):
     counts: dict[str, int] = {}
     for t in targets:
         counts[t.status] = counts.get(t.status, 0) + 1
-    return render(request, "run_detail.html", run=run, targets=targets, counts=counts)
+    return render(
+        request,
+        "run_detail.html",
+        run=run,
+        targets=targets,
+        counts=counts,
+        notice=request.query_params.get("notice", ""),
+        notice_error=request.query_params.get("notice_error", ""),
+    )
 
 
 def _run_counts(targets) -> dict:
@@ -1787,6 +1817,55 @@ def run_rerun(request: Request, run_id: int):
     finally:
         db.close()
     return RedirectResponse(f"/runs/{run_id}", status_code=303)
+
+
+@app.post("/runs/{run_id}/save-configs")
+def run_save_configs(request: Request, run_id: int, target_id: str = Form("")):
+    """Salva (persiste) a config dos devices que tiveram sucesso neste run.
+
+    Com ``target_id`` salva so aquele alvo; sem, salva todos os bem-sucedidos.
+    Os alvos que NAO tiveram sucesso nao sao salvos e sao informados no aviso.
+    """
+    user = require_role(request, RUN_ROLES)
+    lang = user.get("language") or "pt"
+    only_target = int(target_id) if str(target_id).strip().isdigit() else None
+    db = SessionLocal()
+    try:
+        run = db.get(Run, run_id)
+        if not run:
+            raise HTTPException(404, "run nao encontrado")
+        dev_ids = [
+            t.device_id
+            for t in run.targets
+            if t.device_id and (only_target is None or t.id == only_target)
+        ]
+        devs = (
+            list(db.scalars(select(Device).where(Device.id.in_(dev_ids))).all())
+            if dev_ids
+            else []
+        )
+        if any(not can_target(user["role"], d.site_role) for d in devs):
+            raise HTTPException(403, translate(lang, "msg.out_of_scope", n=1))
+    finally:
+        db.close()
+
+    result = save_run_configs(run_id, user["name"], only_target=only_target)
+    from urllib.parse import quote
+
+    ok = result["ok"]
+    failed = result["failed"]
+    skipped = result["skipped"]
+    notice = translate(lang, "rd.saved_ok", n=len(ok)) if ok else ""
+    parts = []
+    if failed:
+        parts.append(
+            translate(lang, "rd.saved_failed", names=", ".join(n for n, _e in failed))
+        )
+    if skipped:
+        parts.append(translate(lang, "rd.saved_skipped", names=", ".join(skipped)))
+    notice_error = " ".join(parts)
+    url = f"/runs/{run_id}?notice={quote(notice)}&notice_error={quote(notice_error)}"
+    return RedirectResponse(url, status_code=303)
 
 
 @app.post("/approvals/approve-all")
@@ -2068,6 +2147,7 @@ def user_save(
     request: Request,
     user_id: str = Form(""),
     username: str = Form(...),
+    email: str = Form(""),
     role: str = Form("operator_basic"),
     password: str = Form(""),
     active: str = Form(""),
@@ -2098,6 +2178,7 @@ def user_save(
             if admins and admins <= 1:
                 raise HTTPException(400, "nao e possivel remover o ultimo admin")
         u.username = username.strip()
+        u.email = email.strip()
         u.role = role
         u.active = bool(active)
         if password:
@@ -2160,10 +2241,23 @@ def settings_page(request: Request):
             "rconfig_url": s.rconfig_url,
             "has_rconfig_token": bool(s.rconfig_token_enc),
             "rconfig_verify_tls": s.rconfig_verify_tls,
+            "smtp_host": s.smtp_host,
+            "smtp_port": s.smtp_port,
+            "smtp_user": s.smtp_user,
+            "has_smtp_password": bool(s.smtp_password_enc),
+            "smtp_tls": s.smtp_tls,
+            "smtp_ssl": s.smtp_ssl,
+            "smtp_from": s.smtp_from,
         }
     finally:
         db.close()
-    return render(request, "settings.html", settings=data, notice=None)
+    return render(
+        request,
+        "settings.html",
+        settings=data,
+        notice=request.query_params.get("notice", ""),
+        notice_error=request.query_params.get("notice_error", ""),
+    )
 
 
 @app.post("/settings/notify")
@@ -2179,6 +2273,58 @@ def settings_notify(request: Request, notify_webhook_url: str = Form("")):
     finally:
         db.close()
     return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/smtp")
+def settings_smtp(
+    request: Request,
+    smtp_host: str = Form(""),
+    smtp_port: int = Form(587),
+    smtp_user: str = Form(""),
+    smtp_password: str = Form(""),
+    smtp_tls: str = Form(""),
+    smtp_ssl: str = Form(""),
+    smtp_from: str = Form(""),
+    clear_password: str = Form(""),
+):
+    """Configuracao de SMTP para envio de e-mails de notificacao."""
+    actor = require_role(request, {"admin"})
+    db = SessionLocal()
+    try:
+        s = get_settings(db)
+        s.smtp_host = smtp_host.strip()
+        s.smtp_port = int(smtp_port or 587)
+        s.smtp_user = smtp_user.strip()
+        if clear_password:
+            s.smtp_password_enc = ""
+        elif smtp_password:
+            s.smtp_password_enc = encrypt_secret(smtp_password)
+        s.smtp_tls = smtp_tls == "1"
+        s.smtp_ssl = smtp_ssl == "1"
+        s.smtp_from = smtp_from.strip()
+        audit(db, actor["name"], "settings_smtp", s.smtp_host or "(vazio)")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/smtp/test")
+def settings_smtp_test(request: Request, to: str = Form("")):
+    """Envia um e-mail de teste para o endereco informado."""
+    require_role(request, {"admin"})
+    from urllib.parse import quote
+
+    from . import mailer
+
+    to = to.strip()
+    if not to:
+        url = "/settings?notice=" + quote("Informe um destinatario para o teste.")
+        return RedirectResponse(url, status_code=303)
+    ok = mailer.send_test([to])
+    msg = "E-mail de teste enviado." if ok else "Falha ao enviar (verifique o SMTP)."
+    url = f"/settings?{'notice' if ok else 'notice_error'}=" + quote(msg)
+    return RedirectResponse(url, status_code=303)
 
 
 @app.post("/settings/credentials")

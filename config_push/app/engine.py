@@ -130,6 +130,73 @@ def _config_cmd(device_type: str) -> str:
     return _CONFIG_DEFAULT
 
 
+# Comando de persistencia (salvar config na startup) por driver.
+# Fallback: 'write memory' (familia Cisco-like).
+_SAVE_CMDS: list[tuple[tuple[str, ...], str]] = [
+    (("hp_comware", "huawei", "h3c"), "save force"),
+    (("juniper_junos",), "commit"),
+    (("fortinet",), "execute cfg save"),
+    (("mikrotik_routeros",), "/system backup save name=auto"),
+    (("vyos",), "save"),
+    (("paloalto_panos",), "commit"),
+    (("dell_os6", "dell_powerconnect"), "copy running-config startup-config"),
+    (("dell_os9", "dell_os10", "dell_force10"), "copy running-config startup-config"),
+    (("aruba_aoscx",), "copy running-config startup-config"),
+]
+_SAVE_DEFAULT = "write memory"
+
+
+def save_cmd(device_type: str) -> str:
+    base = (device_type or "").replace("_telnet", "")
+    for drivers, cmd in _SAVE_CMDS:
+        if base in drivers:
+            return cmd
+    return _SAVE_DEFAULT
+
+
+def save_config(device: dict) -> dict:
+    """Salva a config em execucao na startup do device (persistencia).
+
+    Roda o comando de save adequado ao driver. Nao altera a config em si.
+    """
+    conn, device_type, detected, enable_pw = build_conn(device)
+    cmd = save_cmd(device_type)
+    output_parts = [
+        f"[driver] {device_type}" + (f" (autodetectado de '{AUTODETECT}')" if detected else ""),
+        f"[save] {cmd}",
+    ]
+    _GLOBAL_SEM.acquire()
+    try:
+        with ConnectHandler(**conn) as ssh:
+            if enable_pw:
+                try:
+                    ssh.enable()
+                except Exception as e:  # noqa: BLE001
+                    output_parts.append(f"[enable] aviso: {e}")
+            out = ssh.send_command_timing(cmd, read_timeout=settings.conn_timeout * 4)
+            output_parts.append(out)
+            # deteccao simples de erro nas respostas mais comuns
+            low = (out or "").lower()
+            failed = any(
+                s in low
+                for s in ("invalid input", "unrecognized", "syntax error", "incomplete command")
+            )
+        return {
+            "status": "failed" if failed else "success",
+            "output": "\n".join(output_parts),
+            "error": "comando de save reportou erro" if failed else "",
+        }
+    except NetmikoTimeoutException as e:
+        return {"status": "failed", "output": "\n".join(output_parts), "error": f"timeout: {e}"}
+    except NetmikoAuthenticationException as e:
+        return {"status": "failed", "output": "\n".join(output_parts), "error": f"autenticacao: {e}"}
+    except Exception as e:  # noqa: BLE001
+        log.exception("falha ao salvar config em %s", device.get("ip"))
+        return {"status": "failed", "output": "\n".join(output_parts), "error": str(e)[:500]}
+    finally:
+        _GLOBAL_SEM.release()
+
+
 def _read_config(ssh, device_type: str) -> str:
     try:
         return ssh.send_command(

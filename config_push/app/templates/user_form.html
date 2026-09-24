@@ -4,6 +4,7 @@
 <form class="card narrow" method="post" action="/users/save">
   <input type="hidden" name="user_id" value="{{ edit_user.id if edit_user else '' }}">
   <label>{{ t('c.username') }} *<input name="username" required value="{{ edit_user.username if edit_user else '' }}"></label>
+  <label>{{ t('uf.email') }}<input type="email" name="email" value="{{ edit_user.email if edit_user else '' }}"></label>
   <label>{{ t('uf.role') }}
     <select name="role">
       {% for r in roles %}

@@ -16,6 +16,9 @@
   {% for k, v in counts.items() %}{{ t('status.' ~ k) }}={{ v }}{% if not loop.last %} · {% endif %}{% endfor %}
 </p>
 
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+{% if notice_error %}<p class="error">{{ notice_error }}</p>{% endif %}
+
 {% if run.status == 'pending_approval' and user.role in ['admin','approver'] %}
 <div class="card">
   <form class="row" method="post" action="/runs/{{ run.id }}/approve" style="display:inline">
@@ -49,6 +52,16 @@
 </div>
 {% endif %}
 
+{% if counts.get('success') and not run.dry_run and user.role in ['admin','operator_basic','operator_medium','operator_advanced'] %}
+<div class="card">
+  <form method="post" action="/runs/{{ run.id }}/save-configs" style="display:inline"
+        onsubmit="return confirm('{{ t('rd.save_config') }}?')">
+    <button class="btn primary" type="submit">{{ t('rd.save_config') }}</button>
+  </form>
+  <span class="muted">{{ t('rd.save_config_hint') }}</span>
+</div>
+{% endif %}
+
 <div class="row end">
   <a class="btn" href="/runs/{{ run.id }}/export.csv">{{ t('rd.export') }}</a>
 </div>
@@ -73,6 +86,13 @@
       <td class="nowrap">
         <button class="link" type="button" onclick="toggleOutput({{ tg.id }})">{{ t('rd.output') }}</button>
         {% if tg.diff or run.capture_diff %}<button class="link" type="button" onclick="toggleDiff({{ tg.id }})">{{ t('rd.diff') }}</button>{% endif %}
+        {% if tg.status == 'success' and not run.dry_run and user.role in ['admin','operator_basic','operator_medium','operator_advanced'] %}
+        <form method="post" action="/runs/{{ run.id }}/save-configs" style="display:inline"
+              onsubmit="return confirm('{{ t('rd.save_config') }} {{ tg.device_name }}?')">
+          <input type="hidden" name="target_id" value="{{ tg.id }}">
+          <button class="link" type="submit">{{ t('rd.save_config') }}</button>
+        </form>
+        {% endif %}
       </td>
     </tr>
     <tr class="outputrow" id="out-{{ tg.id }}" style="display:none"><td colspan="7"><pre class="code">{% if tg.commands %}$ {{ tg.snippet_name or run.snippet_name }}:

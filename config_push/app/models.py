@@ -18,6 +18,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(191), default="")
     password_hash: Mapped[str] = mapped_column(String(255))
     # admin | operator | approver | viewer
     role: Mapped[str] = mapped_column(String(20), default="operator")
@@ -279,6 +280,14 @@ class Setting(Base):
     default_enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     # webhook para notificacao (Teams/Slack/generico). Vazio = desligado.
     notify_webhook_url: Mapped[str] = mapped_column(String(500), default="")
+    # SMTP (envio de e-mails de notificacao). Vazio = desligado.
+    smtp_host: Mapped[str] = mapped_column(String(255), default="")
+    smtp_port: Mapped[int] = mapped_column(Integer, default=587)
+    smtp_user: Mapped[str] = mapped_column(String(255), default="")
+    smtp_password_enc: Mapped[str] = mapped_column(Text, default="")
+    smtp_tls: Mapped[bool] = mapped_column(Boolean, default=True)  # STARTTLS
+    smtp_ssl: Mapped[bool] = mapped_column(Boolean, default=False)  # SMTPS (465)
+    smtp_from: Mapped[str] = mapped_column(String(255), default="")
     # Conexoes de API das integracoes (editaveis em Settings). Vazio = usa env.
     librenms_url: Mapped[str] = mapped_column(String(500), default="")
     librenms_token_enc: Mapped[str] = mapped_column(Text, default="")
