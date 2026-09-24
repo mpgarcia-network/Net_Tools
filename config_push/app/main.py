@@ -398,12 +398,45 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     db = SessionLocal()
     try:
         user = db.scalar(select(User).where(User.username == username))
+        # 1) autenticacao local (banco)
         if user and user.active and verify_password(password, user.password_hash):
             _login_clear(key)
             request.session["user"] = {"name": user.username, "role": user.role}
-            audit(db, user.username, "login", "ok")
+            audit(db, user.username, "login", "ok (local)")
             db.commit()
             return RedirectResponse("/", status_code=303)
+
+        # 2) autenticacao via AD/LDAP (se habilitada), com provisao do usuario
+        st = get_settings(db)
+        if (st.auth_mode or "local") in ("ldap", "both"):
+            from .auth_ldap import authenticate as ldap_auth
+
+            info = ldap_auth(username, password)
+            if info:
+                _login_clear(key)
+                u = db.scalar(select(User).where(User.username == info["username"]))
+                if u is None:
+                    u = User(
+                        username=info["username"],
+                        role=info["role"],
+                        auth_source="ldap",
+                        email=info.get("email", ""),
+                        ldap_dn=info.get("dn", ""),
+                        active=True,
+                    )
+                    db.add(u)
+                else:
+                    u.auth_source = "ldap"
+                    u.ldap_dn = info.get("dn", "") or u.ldap_dn
+                    if info.get("email"):
+                        u.email = info["email"]
+                    u.role = info["role"]  # papel sempre vem do grupo AD
+                db.commit()
+                request.session["user"] = {"name": u.username, "role": u.role}
+                audit(db, u.username, "login", f"ok (ldap role={u.role})")
+                db.commit()
+                return RedirectResponse("/", status_code=303)
+
         _login_register_fail(key)
         if user:
             audit(db, username, "login", "senha invalida")
@@ -2248,6 +2281,16 @@ def settings_page(request: Request):
             "smtp_tls": s.smtp_tls,
             "smtp_ssl": s.smtp_ssl,
             "smtp_from": s.smtp_from,
+            "auth_mode": s.auth_mode,
+            "ldap_server": s.ldap_server,
+            "ldap_domain": s.ldap_domain,
+            "ldap_base_dn": s.ldap_base_dn,
+            "ldap_bind_dn": s.ldap_bind_dn,
+            "has_ldap_bind_password": bool(s.ldap_bind_password_enc),
+            "ldap_user_attr": s.ldap_user_attr,
+            "ldap_verify_tls": s.ldap_verify_tls,
+            "ldap_role_map": s.ldap_role_map,
+            "ldap_default_role": s.ldap_default_role,
         }
     finally:
         db.close()
@@ -2273,6 +2316,78 @@ def settings_notify(request: Request, notify_webhook_url: str = Form("")):
     finally:
         db.close()
     return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/ldap")
+def settings_ldap(
+    request: Request,
+    auth_mode: str = Form("local"),
+    ldap_server: str = Form(""),
+    ldap_domain: str = Form(""),
+    ldap_base_dn: str = Form(""),
+    ldap_bind_dn: str = Form(""),
+    ldap_bind_password: str = Form(""),
+    ldap_user_attr: str = Form("sAMAccountName"),
+    ldap_verify_tls: str = Form(""),
+    ldap_role_map: str = Form("{}"),
+    ldap_default_role: str = Form("viewer"),
+    clear_password: str = Form(""),
+):
+    """Configuracao de autenticacao (local / LDAP-AD)."""
+    actor = require_role(request, {"admin"})
+    import json as _json
+
+    mode = auth_mode if auth_mode in ("local", "ldap", "both") else "local"
+    # valida o JSON do mapa grupo->papel
+    try:
+        parsed = _json.loads(ldap_role_map or "{}")
+        if not isinstance(parsed, dict):
+            raise ValueError
+    except (ValueError, TypeError):
+        raise HTTPException(400, "ldap_role_map invalido (JSON objeto)") from None
+    db = SessionLocal()
+    try:
+        s = get_settings(db)
+        s.auth_mode = mode
+        s.ldap_server = ldap_server.strip()
+        s.ldap_domain = ldap_domain.strip()
+        s.ldap_base_dn = ldap_base_dn.strip()
+        s.ldap_bind_dn = ldap_bind_dn.strip()
+        if clear_password:
+            s.ldap_bind_password_enc = ""
+        elif ldap_bind_password:
+            s.ldap_bind_password_enc = encrypt_secret(ldap_bind_password)
+        s.ldap_user_attr = (ldap_user_attr.strip() or "sAMAccountName")
+        s.ldap_verify_tls = ldap_verify_tls == "1"
+        s.ldap_role_map = _json.dumps(parsed, ensure_ascii=False)
+        s.ldap_default_role = ldap_default_role.strip() or "viewer"
+        audit(db, actor["name"], "settings_ldap", f"mode={mode} server={s.ldap_server}")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/ldap/test")
+def settings_ldap_test(request: Request, username: str = Form(""), password: str = Form("")):
+    """Testa um bind LDAP com as credenciais informadas."""
+    require_role(request, {"admin"})
+    from urllib.parse import quote
+
+    from .auth_ldap import authenticate
+
+    if not username or not password:
+        return RedirectResponse(
+            "/settings?notice_error=" + quote("Informe usuario e senha para testar."), status_code=303
+        )
+    info = authenticate(username, password)
+    if info:
+        msg = f"AD OK: usuario {info['username']} -> papel {info['role']} ({len(info['groups'])} grupo(s))."
+        return RedirectResponse("/settings?notice=" + quote(msg), status_code=303)
+    return RedirectResponse(
+        "/settings?notice_error=" + quote("Falha no bind LDAP (verifique servidor/dominio/credenciais)."),
+        status_code=303,
+    )
 
 
 @app.post("/settings/smtp")

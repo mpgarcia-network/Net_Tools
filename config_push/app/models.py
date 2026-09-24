@@ -19,6 +19,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(191), default="")
+    # local | ldap (origem da autenticacao)
+    auth_source: Mapped[str] = mapped_column(String(10), default="local")
+    ldap_dn: Mapped[str] = mapped_column(String(255), default="")
     password_hash: Mapped[str] = mapped_column(String(255))
     # admin | operator | approver | viewer
     role: Mapped[str] = mapped_column(String(20), default="operator")
@@ -280,6 +283,19 @@ class Setting(Base):
     default_enable_password_enc: Mapped[str] = mapped_column(Text, default="")
     # webhook para notificacao (Teams/Slack/generico). Vazio = desligado.
     notify_webhook_url: Mapped[str] = mapped_column(String(500), default="")
+    # Autenticacao: local | ldap | both (local + AD)
+    auth_mode: Mapped[str] = mapped_column(String(10), default="local")
+    ldap_server: Mapped[str] = mapped_column(String(255), default="")  # ldap://host:389
+    ldap_domain: Mapped[str] = mapped_column(String(120), default="")  # ex.: empresa.local
+    ldap_base_dn: Mapped[str] = mapped_column(String(255), default="")  # ex.: DC=emp,DC=local
+    ldap_bind_dn: Mapped[str] = mapped_column(String(255), default="")  # conta de servico (opcional)
+    ldap_bind_password_enc: Mapped[str] = mapped_column(Text, default="")
+    ldap_user_attr: Mapped[str] = mapped_column(String(40), default="sAMAccountName")
+    ldap_group_attr: Mapped[str] = mapped_column(String(40), default="memberOf")
+    ldap_verify_tls: Mapped[bool] = mapped_column(Boolean, default=True)
+    # mapa grupo AD -> papel (JSON: {"GRP-NOC-Admin":"admin", ...})
+    ldap_role_map: Mapped[str] = mapped_column(Text, default="{}")
+    ldap_default_role: Mapped[str] = mapped_column(String(30), default="viewer")
     # SMTP (envio de e-mails de notificacao). Vazio = desligado.
     smtp_host: Mapped[str] = mapped_column(String(255), default="")
     smtp_port: Mapped[int] = mapped_column(Integer, default=587)

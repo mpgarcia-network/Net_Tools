@@ -64,6 +64,48 @@
 </div>
 
 <div class="card">
+  <h2>{{ t('set.ldap_title') }}</h2>
+  <p class="muted">{{ t('set.ldap_hint') }}</p>
+  <form method="post" action="/settings/ldap">
+    <label>{{ t('set.ldap_mode') }}
+      <select name="auth_mode">
+        <option value="local" {{ 'selected' if settings.auth_mode == 'local' }}>{{ t('set.ldap_mode_local') }}</option>
+        <option value="ldap" {{ 'selected' if settings.auth_mode == 'ldap' }}>{{ t('set.ldap_mode_ldap') }}</option>
+        <option value="both" {{ 'selected' if settings.auth_mode == 'both' }}>{{ t('set.ldap_mode_both') }}</option>
+      </select>
+    </label>
+    <div class="grid2">
+      <label>{{ t('set.ldap_server') }}<input name="ldap_server" value="{{ settings.ldap_server }}" placeholder="ldap://ad.empresa.local:389"></label>
+      <label>{{ t('set.ldap_domain') }}<input name="ldap_domain" value="{{ settings.ldap_domain }}" placeholder="empresa.local"></label>
+      <label>{{ t('set.ldap_base_dn') }}<input name="ldap_base_dn" value="{{ settings.ldap_base_dn }}" placeholder="DC=empresa,DC=local"></label>
+      <label>{{ t('set.ldap_user_attr') }}<input name="ldap_user_attr" value="{{ settings.ldap_user_attr }}" placeholder="sAMAccountName"></label>
+      <label>{{ t('set.ldap_bind_dn') }}<input name="ldap_bind_dn" value="{{ settings.ldap_bind_dn }}" placeholder="(opcional) CN=svc,OU=..."></label>
+      <label>{{ t('set.ldap_bind_password') }}
+        <input type="password" name="ldap_bind_password" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_ldap_bind_password else t('set.not_set') }}">
+      </label>
+    </div>
+    <label>{{ t('set.ldap_role_map') }}
+      <textarea name="ldap_role_map" rows="4" spellcheck="false">{{ settings.ldap_role_map }}</textarea>
+    </label>
+    <p class="muted">{{ t('set.ldap_role_map_hint') }}</p>
+    <label>{{ t('set.ldap_default_role') }}
+      <select name="ldap_default_role">
+        {% for r in roles %}<option value="{{ r }}" {{ 'selected' if settings.ldap_default_role == r }}>{{ t('role.' ~ r) }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="chk"><input type="checkbox" name="ldap_verify_tls" value="1" {{ 'checked' if settings.ldap_verify_tls }}> {{ t('set.api_verify') }}</label>
+    <label class="chk"><input type="checkbox" name="clear_password" value="1"> {{ t('set.clear_password') }}</label>
+    <button class="btn primary" type="submit">{{ t('set.ldap_save') }}</button>
+  </form>
+  <form method="post" action="/settings/ldap/test" class="row" style="align-items:end; gap:8px; margin-top:8px">
+    <label style="flex:1">{{ t('set.ldap_test_user') }}<input name="username" placeholder="usuario.ad"></label>
+    <label style="flex:1">{{ t('set.ldap_test_pass') }}<input type="password" name="password" autocomplete="new-password"></label>
+    <button class="btn" type="submit">{{ t('set.ldap_test') }}</button>
+  </form>
+</div>
+
+<div class="card">
   <h2>{{ t('set.api_title') }}</h2>
   <p class="muted">{{ t('set.api_hint') }}</p>
 </div>
