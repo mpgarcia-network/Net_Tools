@@ -410,6 +410,14 @@ def apply_to_device(
     device: dict, body: str, dry_run: bool, capture_diff: bool = False
 ) -> dict:
     """Executa o snippet num device. Devolve dict com status/output/error/diff."""
+    from .templating import TemplateVarError, has_template, render
+
+    raw_body = body or ""
+    templated = has_template(raw_body)
+    try:
+        body = render(raw_body, device, device.get("_vars"))
+    except TemplateVarError as e:
+        return {"status": "failed", "output": "", "error": f"template: {e}", "diff": ""}
     actions = parse_actions(body)
     resolved_type = resolve_device_type(
         device.get("vendor", ""), device.get("protocol", "ssh"), device.get("device_type", "")
@@ -435,6 +443,12 @@ def apply_to_device(
     output_parts: list[str] = [
         f"[driver] {device_type}" + (f" (autodetectado de '{AUTODETECT}')" if detected else "")
     ]
+    if templated:
+        output_parts.append(
+            f"[template] renderizado para {device.get('name')} "
+            f"(site={device.get('site') or '-'}):"
+        )
+        output_parts.append(body)
     # teto global: limita conexoes simultaneas somando todos os runs
     _GLOBAL_SEM.acquire()
     try:

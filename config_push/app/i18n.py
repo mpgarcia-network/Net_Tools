@@ -213,6 +213,12 @@ T: dict[str, dict[str, str]] = {
     "mf.drivers_label": {"pt": "Aplicar somente a estes drivers (deixe vazio = serve para qualquer)", "en": "Apply only to these drivers (leave empty = any)", "es": "Aplicar solo a estos drivers (vacío = cualquiera)"},
     "mf.tip": {"pt": "Dica: com drivers marcados, a execução aplica este modelo só nos devices desse OS (auto por driver).", "en": "Tip: with drivers selected, the execution applies this template only to devices with that OS (auto by driver).", "es": "Consejo: con drivers marcados, la ejecución aplica esta plantilla solo a los dispositivos de ese OS (auto por driver)."},
 
+    "mf.vars_title": {"pt": "Variáveis (Jinja)", "en": "Variables (Jinja)", "es": "Variables (Jinja)"},
+    "mf.vars_hint": {"pt": "Use {{ var }} no corpo do modelo — são resolvidas por device na execução. Variável inexistente faz o device falhar (sem aplicar config errada).", "en": "Use {{ var }} in the template body — resolved per device at execution. A missing variable fails that device (no broken config applied).", "es": "Use {{ var }} en el cuerpo de la plantilla — se resuelven por dispositivo al ejecutar. Una variable inexistente hace fallar ese dispositivo (sin aplicar config errónea)."},
+    "mf.vars_example": {"pt": "Exemplos:", "en": "Examples:", "es": "Ejemplos:"},
+    "mf.preview_device": {"pt": "Prévia com o device", "en": "Preview with device", "es": "Vista previa con el dispositivo"},
+    "mf.preview_btn": {"pt": "Prévia", "en": "Preview", "es": "Vista previa"},
+
     # --- execucoes ---
     "run.title": {"pt": "Execuções", "en": "Executions", "es": "Ejecuciones"},
     "run.new": {"pt": "Nova execução", "en": "New execution", "es": "Nueva ejecución"},
@@ -357,6 +363,10 @@ T: dict[str, dict[str, str]] = {
     "set.pre_commands_hint": {"pt": "Comandos executados logo após conectar, antes da configuração, em TODOS os devices (um por linha). Útil p/ Comware antigo que exige '_cmdline-mode on' + Y + senha. Também configurável por device.", "en": "Commands run right after connecting, before configuration, on ALL devices (one per line). Useful for legacy Comware requiring '_cmdline-mode on' + Y + password. Also per-device.", "es": "Comandos ejecutados tras conectar, antes de la configuración, en TODOS los dispositivos (uno por línea). Útil para Comware antiguo que exige '_cmdline-mode on' + Y + contraseña. También por dispositivo."},
     "set.pre_commands": {"pt": "Pré-comandos", "en": "Pre-commands", "es": "Precomandos"},
     "set.maint_candidates": {"pt": "Senhas candidatas do _cmdline (separadas por vírgula). O botão 'Descobrir senha' no device testa e salva a que funcionar.", "en": "Candidate _cmdline passwords (comma-separated). The device 'Discover password' button tests and saves the working one.", "es": "Contraseñas candidatas del _cmdline (separadas por coma). El botón 'Descubrir contraseña' prueba y guarda la que funcione."},
+    "set.templates_title": {"pt": "Variáveis de template (Jinja)", "en": "Template variables (Jinja)", "es": "Variables de plantilla (Jinja)"},
+    "set.templates_hint": {"pt": "Variáveis globais e por site usadas nos modelos, como var.* (site sobrescreve global). Usadas na execução, por device.", "en": "Global and per-site variables used in templates, as var.* (site overrides global). Resolved at execution, per device.", "es": "Variables globales y por sitio usadas en las plantillas, como var.* (el sitio sobrescribe la global). Resueltas al ejecutar, por dispositivo."},
+    "set.templates_vars": {"pt": "JSON (globals + sites)", "en": "JSON (globals + sites)", "es": "JSON (globals + sites)"},
+    "set.templates_example": {"pt": "Exemplo:", "en": "Example:", "es": "Ejemplo:"},
     "set.ldap_title": {"pt": "Active Directory / LDAP", "en": "Active Directory / LDAP", "es": "Active Directory / LDAP"},
     "set.ldap_hint": {"pt": "Login via AD (bind) com mapeamento de grupos para papéis. Mantenha o login local como fallback.", "en": "AD login (bind) with group-to-role mapping. Keep local login as fallback.", "es": "Login vía AD (bind) con mapeo de grupos a roles. Mantenga el login local como respaldo."},
     "set.ldap_mode": {"pt": "Modo de autenticação", "en": "Authentication mode", "es": "Modo de autenticación"},

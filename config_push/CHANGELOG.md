@@ -1,5 +1,16 @@
 # Changelog — Net Tools
 
+## v0.6.0 — 2026-09-25
+
+**Templating de comandos com variáveis (Jinja)**
+- Modelos aceitam `{{ ... }}` resolvido **por device** na execução (`name`/`hostname`,
+  `ip`, `vendor`, `model`, `driver`, `protocol`, `port`, `site`, `site_role`, `tags`,
+  `now`/`today`, `var.*`).
+- **Variáveis globais e por site** (`var.*`) em Configurações (JSON
+  `{"globals": {...}, "sites": {...}}`); site sobrescreve global.
+- **StrictUndefined** (variável inexistente falha o device) e ambiente **sandbox**.
+- **Prévia** do modelo na tela do snippet.
+
 ## v0.5.0 — 2026-09-25
 
 **Backup oficial pelo rConfig**

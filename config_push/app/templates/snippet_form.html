@@ -22,4 +22,30 @@
     <button class="btn primary" type="submit">{{ t('c.save') }}</button>
   </div>
 </form>
+
+<div class="card">
+  <h3>{{ t('mf.vars_title') }}</h3>
+  <p class="muted">{{ t('mf.vars_hint') }}</p>
+  <p class="vars-ref">
+    <code>name</code> <code>ip</code> <code>vendor</code> <code>model</code>
+    <code>driver</code> <code>protocol</code> <code>port</code> <code>site</code>
+    <code>site_role</code> <code>tags</code> <code>var.*</code> <code>now</code> <code>today</code>
+  </p>
+  <p class="muted">
+    {{ t('mf.vars_example') }}
+    {% raw %}<code>hostname {{ name }}</code> · <code>interface Vlan{{ var.vlan_mgmt }}</code>{% endraw %}
+  </p>
+  <div class="inline-form">
+    <label>{{ t('mf.preview_device') }}
+      <select id="previewDevice">
+        {% for d in devices %}
+        <option value="{{ d.id }}">{{ d.name }} ({{ d.ip }}{% if d.site %} · {{ d.site }}{% endif %})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="btn" type="button" onclick="previewSnippet()">{{ t('mf.preview_btn') }}</button>
+    <span class="muted" id="previewStatus"></span>
+  </div>
+  <pre class="config-box" id="previewBox" style="display:none"></pre>
+</div>
 {% endblock %}

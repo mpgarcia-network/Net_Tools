@@ -250,6 +250,34 @@ async function testIntegration(source) {
   }
 }
 
+// Modelos: previa do template (Jinja) com os dados de um device
+async function previewSnippet() {
+  const ta = document.querySelector('textarea[name="body"]');
+  const sel = document.getElementById('previewDevice');
+  const status = document.getElementById('previewStatus');
+  const box = document.getElementById('previewBox');
+  if (!ta || !box) return;
+  if (status) { status.className = 'muted'; status.textContent = '...'; }
+  const body = new URLSearchParams({ body: ta.value, device_id: sel ? sel.value : '0' });
+  try {
+    const res = await fetch('/snippets/preview', {
+      method: 'POST', body: body, credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      box.textContent = data.rendered;
+      box.style.display = 'block';
+      if (status) { status.className = 'ok'; status.textContent = data.device + (data.site ? ' · ' + data.site : ''); }
+    } else {
+      box.style.display = 'none';
+      if (status) { status.className = 'error'; status.textContent = data.error || 'erro'; }
+    }
+  } catch (e) {
+    box.style.display = 'none';
+    if (status) { status.className = 'error'; status.textContent = 'erro: ' + e; }
+  }
+}
+
 // Polling do status do run (pagina de detalhe)
 (function () {
   if (typeof window.RUN_ID === 'undefined') return;

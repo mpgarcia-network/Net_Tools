@@ -163,6 +163,8 @@ def effective_credentials(db, device: Device) -> tuple[str, str, str]:
 
 
 def device_dict(db, device: Device, target=None) -> dict:
+    from .settings_store import template_vars
+
     username, password_enc, enable_enc = effective_credentials(db, device)
     s = db.get(Setting, 1)
     global_pre = (s.pre_commands if s else "") or ""
@@ -177,11 +179,19 @@ def device_dict(db, device: Device, target=None) -> dict:
         "device_type": device.device_type,
         "protocol": device.protocol,
         "port": device.port,
+        # campos extras usados no templating (Jinja)
+        "site": device.site or "",
+        "site_role": device.site_role or "",
+        "tags": device.tags or "",
+        "source": device.source or "",
+        "external_id": device.external_id or "",
         "username": username,
         "password_enc": password_enc,
         "enable_password_enc": enable_enc,
         "maintenance_password_enc": maint_enc,
         "pre_commands": pre,
+        # variaveis globais + do site (Jinja)
+        "_vars": template_vars(db),
     }
     if target is not None and target.commands:
         data["commands"] = target.commands

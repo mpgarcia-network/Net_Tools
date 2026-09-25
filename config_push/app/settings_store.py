@@ -99,6 +99,20 @@ def invalidate_branding() -> None:
     _brand_cache["data"] = None
 
 
+def template_vars(db) -> dict:
+    """Variaveis de template (Jinja) efetivas: ``{"globals": {}, "sites": {}}``.
+
+    JSON invalido no banco nao derruba a execucao — cai no vazio. A validacao
+    acontece ao salvar (Configuracoes).
+    """
+    from .templating import TemplateVarError, parse_vars
+
+    try:
+        return parse_vars(get_settings(db).template_vars or "")
+    except TemplateVarError:
+        return {"globals": {}, "sites": {}}
+
+
 def integration_config(db) -> dict[str, dict]:
     """Conexoes (LibreNMS/rConfig) efetivas: banco primeiro, senao env.
 

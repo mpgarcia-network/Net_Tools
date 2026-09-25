@@ -151,6 +151,7 @@ def ensure_schema() -> None:
                 )
             for col, ddl in (
                 ("pre_commands", "TEXT DEFAULT ''"),
+                ("template_vars", "TEXT DEFAULT ''"),
                 ("auth_mode", "VARCHAR(10) DEFAULT 'local'"),
                 ("ldap_server", "VARCHAR(255) DEFAULT ''"),
                 ("ldap_domain", "VARCHAR(120) DEFAULT ''"),

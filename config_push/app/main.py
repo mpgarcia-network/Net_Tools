@@ -74,6 +74,7 @@ from .service import (
     audit,
     collect_backup,
     create_run,
+    device_dict,
     notify,
     recover_orphans,
     save_run_configs,
@@ -91,6 +92,8 @@ from .settings_store import (
     media_path,
     save_media,
 )
+from .templating import TemplateVarError
+from .templating import render as render_command
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1561,10 +1564,26 @@ def snippet_duplicate(request: Request, snippet_id: int):
     return RedirectResponse("/snippets", status_code=303)
 
 
+def _device_options(db) -> list[dict]:
+    """Lista leve de devices (para o seletor de previa do modelo)."""
+    rows = db.scalars(select(Device).order_by(Device.name)).all()
+    return [
+        {"id": d.id, "name": d.name, "ip": d.ip, "site": d.site or ""}
+        for d in rows
+    ]
+
+
 @app.get("/snippets/new", response_class=HTMLResponse)
 def snippet_new(request: Request):
     require_role(request, MANAGE_ROLES)
-    return render(request, "snippet_form.html", snippet=None, drivers=all_drivers())
+    db = SessionLocal()
+    try:
+        devices = _device_options(db)
+    finally:
+        db.close()
+    return render(
+        request, "snippet_form.html", snippet=None, drivers=all_drivers(), devices=devices
+    )
 
 
 @app.get("/snippets/{snippet_id}/edit", response_class=HTMLResponse)
@@ -1573,11 +1592,38 @@ def snippet_edit(request: Request, snippet_id: int):
     db = SessionLocal()
     try:
         snippet = db.get(Snippet, snippet_id)
+        devices = _device_options(db)
     finally:
         db.close()
     if not snippet:
         raise HTTPException(404, translate(_lang(request), "msg.model_not_found"))
-    return render(request, "snippet_form.html", snippet=snippet, drivers=all_drivers())
+    return render(
+        request, "snippet_form.html", snippet=snippet, drivers=all_drivers(), devices=devices
+    )
+
+
+@app.post("/snippets/preview")
+def snippet_preview(request: Request, body: str = Form(""), device_id: int = Form(0)):
+    """Renderiza o modelo (Jinja) com os dados de um device, para previa."""
+    require_role(request, MANAGE_ROLES)
+
+    db = SessionLocal()
+    try:
+        dev = db.get(Device, device_id) if device_id else None
+        if dev is None:
+            dev = db.scalar(select(Device).order_by(Device.name))
+        if dev is None:
+            return JSONResponse({"ok": False, "error": "nenhum device cadastrado"})
+        d = device_dict(db, dev)
+    finally:
+        db.close()
+    try:
+        out = render_command(body, d, d.get("_vars"))
+    except TemplateVarError as e:
+        return JSONResponse({"ok": False, "error": str(e), "device": d.get("name")})
+    return JSONResponse(
+        {"ok": True, "device": d.get("name"), "site": d.get("site"), "rendered": out}
+    )
 
 
 @app.post("/snippets/save")
@@ -3594,6 +3640,7 @@ def settings_page(request: Request):
             "smtp_from": s.smtp_from,
             "pre_commands": s.pre_commands,
             "maintenance_candidates": s.maintenance_candidates,
+            "template_vars": s.template_vars,
             "auth_mode": s.auth_mode,
             "ldap_server": s.ldap_server,
             "ldap_domain": s.ldap_domain,
@@ -3644,6 +3691,30 @@ def settings_pre_commands(
         if maintenance_candidates.strip():
             s.maintenance_candidates = maintenance_candidates.strip()
         audit(db, actor["name"], "settings_pre_commands", "global")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/templates")
+def settings_templates(request: Request, template_vars: str = Form("")):
+    """Variaveis de template (Jinja) globais e por site (JSON)."""
+    actor = require_role(request, {"admin"})
+    from urllib.parse import quote
+
+    from .templating import parse_vars
+
+    raw = template_vars.strip()
+    try:
+        parsed = parse_vars(raw)
+    except TemplateVarError as e:
+        return RedirectResponse("/settings?notice_error=" + quote(str(e)), status_code=303)
+    db = SessionLocal()
+    try:
+        s = get_settings(db)
+        s.template_vars = json.dumps(parsed, ensure_ascii=False, indent=2) if raw else ""
+        audit(db, actor["name"], "settings_templates", "global/site vars")
         db.commit()
     finally:
         db.close()

@@ -53,6 +53,20 @@
 </div>
 
 <div class="card">
+  <h2>{{ t('set.templates_title') }}</h2>
+  <p class="muted">{{ t('set.templates_hint') }}</p>
+  <form method="post" action="/settings/templates">
+    <label>{{ t('set.templates_vars') }}
+      <textarea name="template_vars" rows="10" spellcheck="false">{{ settings.template_vars }}</textarea>
+    </label>
+    <p class="muted">{{ t('set.templates_example') }}
+      {% raw %}<code>{"globals": {"ntp": "10.0.0.1"}, "sites": {"HU1": {"vlan_mgmt": "100"}}}</code>{% endraw %}
+    </p>
+    <button class="btn primary" type="submit">{{ t('c.save') }}</button>
+  </form>
+</div>
+
+<div class="card">
   <h2>{{ t('set.smtp_title') }}</h2>
   <p class="muted">{{ t('set.smtp_hint') }}</p>
   <form method="post" action="/settings/smtp">

@@ -321,6 +321,9 @@ class Setting(Base):
     notify_webhook_url: Mapped[str] = mapped_column(String(500), default="")
     # Pre-comandos globais (rodam em todos os devices, antes da config).
     pre_commands: Mapped[str] = mapped_column(Text, default="")
+    # Variaveis de template (Jinja) globais e por site. JSON:
+    # {"globals": {...}, "sites": {"HU1": {...}}}
+    template_vars: Mapped[str] = mapped_column(Text, default="")
     # Autenticacao: local | ldap | both (local + AD)
     auth_mode: Mapped[str] = mapped_column(String(10), default="local")
     ldap_server: Mapped[str] = mapped_column(String(255), default="")  # ldap://host:389
