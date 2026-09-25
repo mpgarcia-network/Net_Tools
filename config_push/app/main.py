@@ -60,6 +60,7 @@ from .models import (
     User,
 )
 from .compliance import select_devices, start_policy_async
+from . import backup as bk
 from .security import (
     MIN_PASSWORD_LEN,
     encrypt_secret,
@@ -373,6 +374,27 @@ def _api_error(status: int, message: str):
     return JSONResponse(status_code=status, content={"error": message})
 
 
+# ---------------------------------------------------------------------------
+# Rate-limit da API (por token, em memoria; 1 replica)
+# ---------------------------------------------------------------------------
+_API_RL_WINDOW = 60.0  # 1 min
+_API_RL_MAX = 120      # requisicoes por minuto por token
+_api_hits: dict[int, list[float]] = {}
+_api_lock = threading.Lock()
+
+
+def _api_rate_ok(token_id: int) -> bool:
+    now = time.monotonic()
+    with _api_lock:
+        hits = [t for t in _api_hits.get(token_id, []) if now - t < _API_RL_WINDOW]
+        if len(hits) >= _API_RL_MAX:
+            _api_hits[token_id] = hits
+            return False
+        hits.append(now)
+        _api_hits[token_id] = hits
+        return True
+
+
 def require_api(request: Request, roles: set[str] | None = None):
     """Valida `Authorization: Bearer <token>` contra a tabela api_tokens.
 
@@ -398,6 +420,8 @@ def require_api(request: Request, roles: set[str] | None = None):
         owner = db.scalar(select(User).where(User.username == tok.owner))
         if not owner or not owner.active:
             raise HTTPException(status_code=401, detail="dono do token inativo")
+        if not _api_rate_ok(tok.id):
+            raise HTTPException(status_code=429, detail="muitas requisicoes (rate-limit)")
         tok.last_used_at = utcnow()
         db.commit()
         return {"name": tok.owner, "role": tok.role, "token_id": tok.id,
@@ -1909,6 +1933,32 @@ def _serialize_run(run: Run, detail: bool = False) -> dict:
     return data
 
 
+def _serialize_device(d: Device, detail: bool = False) -> dict:
+    data = {
+        "id": d.id,
+        "name": d.name,
+        "ip": d.ip,
+        "vendor": d.vendor,
+        "model": d.model,
+        "device_type": d.device_type,
+        "protocol": d.protocol,
+        "port": d.port,
+        "site": d.site,
+        "site_role": d.site_role,
+        "tags": d.tags,
+        "enabled": d.enabled,
+        "source": d.source,
+        "external_id": d.external_id,
+    }
+    if detail:
+        data["username"] = d.username
+        data["pre_commands"] = d.pre_commands
+        data["has_password"] = bool(d.password_enc)
+        data["has_enable_password"] = bool(d.enable_password_enc)
+        data["has_maintenance_password"] = bool(d.maintenance_password_enc)
+    return data
+
+
 # --- documentacao (OpenAPI/Swagger) -----------------------------------------
 from pydantic import BaseModel, Field  # noqa: E402
 
@@ -1923,6 +1973,51 @@ class ApiRunIn(BaseModel):
     snippet_ids: list[int] = Field(default_factory=list, description="IDs de modelos (opcional)")
     dry_run: bool = Field(False, description="Simula sem aplicar")
     capture_diff: bool = Field(False, description="Captura diff antes/depois")
+
+
+class ApiDevicePatch(BaseModel):
+    """Edicao parcial de um device (envie so os campos que quer alterar).
+
+    Senhas vao em claro neste corpo (trafega sob HTTPS/VPN) e sao cifradas ao gravar.
+    """
+
+    name: str | None = None
+    ip: str | None = None
+    vendor: str | None = None
+    model: str | None = None
+    device_type: str | None = None
+    protocol: str | None = None
+    port: int | None = None
+    username: str | None = None
+    password: str | None = Field(None, description="Nova senha (cifrada ao gravar)")
+    enable_password: str | None = Field(None, description="Nova senha de enable")
+    maintenance_password: str | None = Field(None, description="Senha do _cmdline-mode")
+    tags: str | None = None
+    site: str | None = None
+    site_role: str | None = None
+    pre_commands: str | None = None
+    enabled: bool | None = None
+
+
+class ApiDeviceIn(BaseModel):
+    """Criacao de um device."""
+
+    name: str = Field(..., description="Nome do equipamento")
+    ip: str = Field(..., description="IP de gerencia")
+    vendor: str = Field("", description="Fabricante (ex.: Cisco, HP)")
+    model: str = Field("", description="Modelo (opcional)")
+    device_type: str = Field("", description="Driver Netmiko (opcional; auto se vazio)")
+    protocol: str = Field("ssh", description="ssh | telnet")
+    port: int = Field(22, description="Porta de gerencia")
+    username: str = Field("", description="Usuario")
+    password: str = Field("", description="Senha (cifrada ao gravar)")
+    enable_password: str = Field("", description="Senha de enable")
+    maintenance_password: str = Field("", description="Senha do _cmdline-mode")
+    tags: str = Field("", description="Tags separadas por virgula")
+    site: str = Field("", description="Site/local")
+    site_role: str = Field("", description="Camada: acesso|tor|distribuicao|core|firewall")
+    pre_commands: str = Field("", description="Pre-comandos (um por linha)")
+    enabled: bool = Field(True, description="Ativo")
 
 
 class ApiRejectIn(BaseModel):
@@ -1948,14 +2043,19 @@ def api_me(request: Request, _doc=Depends(_api_doc)):
     )
 
 
-@app.get("/api/v1/devices", tags=["API v1"], summary="Lista devices (respeita a alcada do token)")
+@app.get("/api/v1/devices", tags=["API v1"], summary="Lista devices paginado (respeita a alcada)")
 def api_devices(
     request: Request,
     site: str = "",
     site_role: str = "",
+    q: str = "",
+    page: int = 1,
+    page_size: int = 50,
     _doc=Depends(_api_doc),
 ):
     user = require_api(request)
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
     db = SessionLocal()
     try:
         stmt = select(Device).order_by(Device.name)
@@ -1963,51 +2063,210 @@ def api_devices(
             stmt = stmt.where(Device.site == site)
         if site_role:
             stmt = stmt.where(Device.site_role == site_role)
-        rows = list(db.scalars(stmt).all())
-        data = [
-            {
-                "id": d.id,
-                "name": d.name,
-                "ip": d.ip,
-                "vendor": d.vendor,
-                "model": d.model,
-                "device_type": d.device_type,
-                "site": d.site,
-                "site_role": d.site_role,
-                "enabled": d.enabled,
-                "source": d.source,
-            }
-            for d in rows
-            if can_target(user["role"], d.site_role)
-        ]
+        if q:
+            like = f"%{q}%"
+            stmt = stmt.where(or_(Device.name.like(like), Device.ip.like(like)))
+        rows = [d for d in db.scalars(stmt).all() if can_target(user["role"], d.site_role)]
     finally:
         db.close()
-    return JSONResponse({"count": len(data), "devices": data})
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start:start + page_size]
+    data = [_serialize_device(d) for d in page_rows]
+    return JSONResponse(
+        {
+            "count": len(data),
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "devices": data,
+        }
+    )
 
 
-@app.get("/api/v1/runs", tags=["API v1"], summary="Lista execucoes")
+@app.post(
+    "/api/v1/devices",
+    tags=["API v1"],
+    summary="Cria um device",
+    status_code=201,
+)
+def api_device_create(body: ApiDeviceIn, request: Request, _doc=Depends(_api_doc)):
+    user = require_api(request, MANAGE_ROLES)
+    name = (body.name or "").strip()
+    ip = (body.ip or "").strip()
+    if not name or not ip:
+        return _api_error(400, "name e ip sao obrigatorios")
+    if body.protocol not in ("ssh", "telnet"):
+        return _api_error(400, "protocolo deve ser ssh ou telnet")
+    if not (1 <= int(body.port) <= 65535):
+        return _api_error(400, "porta invalida")
+    site_role = normalize_site_role(body.site_role)
+    if not can_target(user["role"], site_role):
+        return _api_error(403, "camada do device fora do escopo do token")
+    db = SessionLocal()
+    try:
+        if db.scalar(select(Device).where(Device.ip == ip)):
+            return _api_error(400, f"IP ja existe: {ip}")
+        if db.scalar(select(Device).where(Device.name == name)):
+            return _api_error(400, f"nome ja existe: {name}")
+        d = Device(
+            name=name,
+            ip=ip,
+            vendor=(body.vendor or "").strip(),
+            model=(body.model or "").strip(),
+            device_type=resolve_driver(body.vendor, body.model, (body.device_type or "").strip()),
+            protocol=body.protocol,
+            port=int(body.port),
+            username=(body.username or "").strip(),
+            password_enc=encrypt_secret(body.password or ""),
+            enable_password_enc=encrypt_secret(body.enable_password or ""),
+            maintenance_password_enc=encrypt_secret(body.maintenance_password or ""),
+            tags=(body.tags or "").strip(),
+            site=(body.site or "").strip(),
+            site_role=site_role,
+            pre_commands=(body.pre_commands or "").strip(),
+            enabled=bool(body.enabled),
+            source="manual",
+        )
+        db.add(d)
+        db.commit()
+        db.refresh(d)
+        audit(db, user["name"], "api_device_create", f"{d.name} ({d.ip})")
+        db.commit()
+        data = _serialize_device(d, detail=True)
+    finally:
+        db.close()
+    return JSONResponse(data)
+
+
+@app.get("/api/v1/devices/{device_id}", tags=["API v1"], summary="Detalhe de um device")
+def api_device_detail(request: Request, device_id: int, _doc=Depends(_api_doc)):
+    user = require_api(request)
+    db = SessionLocal()
+    try:
+        d = db.get(Device, device_id)
+        if not d:
+            return _api_error(404, "device nao encontrado")
+        if not can_target(user["role"], d.site_role):
+            return _api_error(403, "device fora do escopo do token")
+        data = _serialize_device(d, detail=True)
+    finally:
+        db.close()
+    return JSONResponse(data)
+
+
+@app.patch("/api/v1/devices/{device_id}", tags=["API v1"], summary="Edita um device")
+def api_device_update(
+    device_id: int,
+    body: ApiDevicePatch,
+    request: Request,
+    _doc=Depends(_api_doc),
+):
+    """Edicao parcial: envie apenas os campos que quer alterar."""
+    user = require_api(request, MANAGE_ROLES)
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        return _api_error(400, "nada para alterar")
+    db = SessionLocal()
+    try:
+        d = db.get(Device, device_id)
+        if not d:
+            return _api_error(404, "device nao encontrado")
+        if not can_target(user["role"], d.site_role):
+            return _api_error(403, "device fora do escopo do token")
+        # alvo novo (site_role) nao pode sair da alcada do token
+        if "site_role" in fields and not can_target(user["role"], normalize_site_role(fields["site_role"])):
+            return _api_error(403, "camada de destino fora do escopo do token")
+        if "ip" in fields:
+            newip = (fields["ip"] or "").strip()
+            if newip and newip != d.ip:
+                dup = db.scalar(select(Device).where(Device.ip == newip, Device.id != d.id))
+                if dup:
+                    return _api_error(400, f"IP ja existe: {newip}")
+            fields["ip"] = newip
+        if "name" in fields:
+            newname = (fields["name"] or "").strip()
+            if newname and newname != d.name:
+                dupn = db.scalar(select(Device).where(Device.name == newname, Device.id != d.id))
+                if dupn:
+                    return _api_error(400, f"nome ja existe: {newname}")
+            fields["name"] = newname
+        if "password" in fields:
+            d.password_enc = encrypt_secret(fields.pop("password") or "")
+        if "enable_password" in fields:
+            d.enable_password_enc = encrypt_secret(fields.pop("enable_password") or "")
+        if "maintenance_password" in fields:
+            d.maintenance_password_enc = encrypt_secret(fields.pop("maintenance_password") or "")
+        if "site_role" in fields:
+            fields["site_role"] = normalize_site_role(fields["site_role"])
+        if "protocol" in fields and fields["protocol"] not in ("ssh", "telnet"):
+            return _api_error(400, "protocolo deve ser ssh ou telnet")
+        if "port" in fields and not (1 <= int(fields["port"]) <= 65535):
+            return _api_error(400, "porta invalida")
+        explicit_driver = fields.pop("device_type", None)
+        for k, v in fields.items():
+            if hasattr(d, k) and k not in ("id",):
+                setattr(d, k, v)
+        if explicit_driver is not None or "vendor" in body.model_fields_set or "model" in body.model_fields_set:
+            d.device_type = resolve_driver(
+                d.vendor, d.model, (explicit_driver or "").strip() or d.device_type
+            )
+        audit(db, user["name"], "api_device_update", f"{d.name} ({d.ip}) campos={list(fields)}")
+        db.commit()
+        data = _serialize_device(d, detail=True)
+    finally:
+        db.close()
+    return JSONResponse(data)
+
+
+@app.delete("/api/v1/devices/{device_id}", tags=["API v1"], summary="Remove um device")
+def api_device_delete(request: Request, device_id: int, _doc=Depends(_api_doc)):
+    user = require_api(request, ADMIN_ROLES)
+    db = SessionLocal()
+    try:
+        d = db.get(Device, device_id)
+        if not d:
+            return _api_error(404, "device nao encontrado")
+        name, ip = d.name, d.ip
+        db.delete(d)
+        audit(db, user["name"], "api_device_delete", f"{name} ({ip})")
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": device_id, "deleted": True})
+
+
+@app.get("/api/v1/runs", tags=["API v1"], summary="Lista execucoes (paginado)")
 def api_runs_list(
     request: Request,
     status: str = "",
-    limit: int = 50,
+    page: int = 1,
+    page_size: int = 50,
     _doc=Depends(_api_doc),
 ):
     user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
-    limit = max(1, min(limit, 500))
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
     db = SessionLocal()
     try:
-        stmt = (
-            select(Run)
-            .options(selectinload(Run.targets))
-            .order_by(Run.id.desc())
-            .limit(limit)
-        )
+        base = select(Run).options(selectinload(Run.targets)).order_by(Run.id.desc())
         if status:
-            stmt = stmt.where(Run.status == status)
-        runs = list(db.scalars(stmt).all())
+            base = base.where(Run.status == status)
+        rows = list(db.scalars(base).all())
     finally:
         db.close()
-    return JSONResponse({"count": len(runs), "runs": [_serialize_run(r) for r in runs]})
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start:start + page_size]
+    return JSONResponse(
+        {
+            "count": len(page_rows),
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "runs": [_serialize_run(r) for r in page_rows],
+        }
+    )
 
 
 @app.get("/api/v1/runs/{run_id}", tags=["API v1"], summary="Detalhe da execucao (com output/diff)")
@@ -2240,6 +2499,224 @@ def api_run_cancel(request: Request, run_id: int, _doc=Depends(_api_doc)):
     finally:
         db.close()
     return JSONResponse({"id": run_id, "status": "cancelled"})
+
+
+# --- compliance via API -----------------------------------------------------
+@app.get("/api/v1/policies", tags=["API v1"], summary="Lista politicas de conformidade")
+def api_policies(request: Request, _doc=Depends(_api_doc)):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    db = SessionLocal()
+    try:
+        rows = list(db.scalars(select(Policy).order_by(Policy.name)).all())
+        data = [
+            {
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+                "vendor": p.vendor,
+                "driver": p.driver,
+                "tag": p.tag,
+                "enabled": p.enabled,
+                "rules": [
+                    {
+                        "kind": r.kind,
+                        "pattern": r.pattern,
+                        "severity": r.severity,
+                        "description": r.description,
+                    }
+                    for r in p.rules
+                ],
+            }
+            for p in rows
+        ]
+    finally:
+        db.close()
+    return JSONResponse({"count": len(data), "policies": data})
+
+
+@app.post(
+    "/api/v1/policies/{policy_id}/run",
+    tags=["API v1"],
+    summary="Dispara uma politica (avaliacao assincrona)",
+    status_code=202,
+)
+def api_policy_run(request: Request, policy_id: int, _doc=Depends(_api_doc)):
+    user = require_api(request, RUN_ROLES)
+    db = SessionLocal()
+    try:
+        p = db.get(Policy, policy_id)
+        if not p:
+            return _api_error(404, "politica nao encontrada")
+    finally:
+        db.close()
+    try:
+        run_id = start_policy_async(policy_id, author=user["name"])
+    except ValueError as e:
+        return _api_error(400, str(e))
+    return JSONResponse({"compliance_run_id": run_id, "status": "running"})
+
+
+@app.get("/api/v1/compliance/runs", tags=["API v1"], summary="Lista execucoes de conformidade")
+def api_compliance_runs(
+    request: Request,
+    page: int = 1,
+    page_size: int = 50,
+    _doc=Depends(_api_doc),
+):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
+    db = SessionLocal()
+    try:
+        rows = list(db.scalars(select(ComplianceRun).order_by(ComplianceRun.id.desc())).all())
+    finally:
+        db.close()
+    total = len(rows)
+    start = (page - 1) * page_size
+    page_rows = rows[start:start + page_size]
+    data = [
+        {
+            "id": r.id,
+            "policy_id": r.policy_id,
+            "policy_name": r.policy_name,
+            "status": r.status,
+            "total": r.total,
+            "compliant": r.compliant,
+            "violations": r.violations,
+            "errors": r.errors,
+            "requested_by": r.requested_by,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+        }
+        for r in page_rows
+    ]
+    return JSONResponse(
+        {"count": len(data), "total": total, "page": page, "page_size": page_size, "runs": data}
+    )
+
+
+@app.get(
+    "/api/v1/compliance/runs/{compliance_run_id}",
+    tags=["API v1"],
+    summary="Resultado da conformidade por device",
+)
+def api_compliance_run_detail(request: Request, compliance_run_id: int, _doc=Depends(_api_doc)):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    db = SessionLocal()
+    try:
+        run = db.get(ComplianceRun, compliance_run_id)
+        if not run:
+            return _api_error(404, "execucao de conformidade nao encontrada")
+        data = {
+            "id": run.id,
+            "policy_id": run.policy_id,
+            "policy_name": run.policy_name,
+            "status": run.status,
+            "total": run.total,
+            "compliant": run.compliant,
+            "violations": run.violations,
+            "errors": run.errors,
+            "results": [
+                {
+                    "device_id": r.device_id,
+                    "device": r.device_name,
+                    "ip": r.device_ip,
+                    "status": r.status,
+                    "changed": r.changed,
+                    "message": r.message,
+                    "findings": json.loads(r.findings or "[]"),
+                }
+                for r in run.results
+            ],
+        }
+    finally:
+        db.close()
+    return JSONResponse(data)
+
+
+# --- backup via API (status Git interno + status rConfig) -------------------
+@app.get("/api/v1/backups", tags=["API v1"], summary="Status de backup (Git interno + rConfig)")
+def api_backups(request: Request, _doc=Depends(_api_doc)):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    db = SessionLocal()
+    try:
+        devices = list(db.scalars(select(Device).order_by(Device.name)).all())
+        latest: dict[int, Backup] = {}
+        for b in db.scalars(select(Backup).order_by(Backup.created_at.desc())).all():
+            if b.device_id is not None and b.device_id not in latest:
+                latest[b.device_id] = b
+    finally:
+        db.close()
+    now = utcnow()
+    data = []
+    for d in devices:
+        if not can_target(user["role"], d.site_role):
+            continue
+        b = latest.get(d.id)
+        status = "never"
+        if b is not None:
+            age_h = (now - b.created_at).total_seconds() / 3600 if b.created_at else 999
+            if b.status != "ok":
+                status = "failed"
+            elif age_h > BACKUP_STALE_HOURS:
+                status = "stale"
+            else:
+                status = "ok"
+        data.append(
+            {
+                "device_id": d.id,
+                "device": d.name,
+                "ip": d.ip,
+                "site": d.site,
+                "status": status,
+                "last": {
+                    "hash": b.config_hash,
+                    "changed": b.changed,
+                    "at": b.created_at.isoformat() if b.created_at else None,
+                }
+                if b
+                else None,
+            }
+        )
+    return JSONResponse({"count": len(data), "backups": data})
+
+
+@app.get(
+    "/api/v1/backups/{device_id}",
+    tags=["API v1"],
+    summary="Versoes (Git) e diff do backup de um device",
+)
+def api_backup_device(
+    request: Request,
+    device_id: int,
+    limit: int = 20,
+    _doc=Depends(_api_doc),
+):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    db = SessionLocal()
+    try:
+        d = db.get(Device, device_id)
+        if not d:
+            return _api_error(404, "device nao encontrado")
+        if not can_target(user["role"], d.site_role):
+            return _api_error(403, "device fora do escopo do token")
+        name = d.name
+    finally:
+        db.close()
+    limit = max(1, min(limit, 100))
+    versions = bk.versions(name, limit=limit)
+    data = [
+        {"hash": v.get("hash"), "short": v.get("short"), "message": v.get("message"), "time": v.get("time")}
+        for v in versions
+    ]
+    diff = ""
+    if len(versions) >= 2:
+        diff = bk.diff(
+            name, versions[1].get("hash"), versions[0].get("hash")
+        )
+    return JSONResponse(
+        {"device_id": device_id, "device": name, "versions": data, "last_diff": (diff or "")[-20000:]}
+    )
 
 
 @app.get("/runs/{run_id}/export.csv")
