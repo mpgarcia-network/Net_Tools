@@ -22,6 +22,9 @@
     <a href="/approvals">{{ t('nav.approvals') }}</a>
     <a href="/schedules">{{ t('nav.schedules') }}</a>
     <a href="/compliance">{{ t('nav.compliance') }}</a>
+    {% if user.role in ['admin','operator_advanced'] %}
+    <a href="/parameters">{{ t('nav.parameters') }}</a>
+    {% endif %}
     <a href="/audit">{{ t('nav.audit') }}</a>
     {% if user.role == 'admin' %}
     <a href="/users">{{ t('nav.users') }}</a>

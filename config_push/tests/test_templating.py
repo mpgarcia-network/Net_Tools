@@ -69,7 +69,19 @@ def test_parse_vars_invalid_json():
 
 
 def test_parse_vars_empty():
-    assert parse_vars("") == {"globals": {}, "sites": {}}
+    assert parse_vars("") == {"fields": [], "globals": {}, "sites": {}}
+
+
+def test_parse_vars_fields():
+    raw = '{"fields": [{"key": "ntp", "description": "servidor NTP"}], "globals": {"ntp": "1.1.1.1"}}'
+    data = parse_vars(raw)
+    assert data["fields"] == [{"key": "ntp", "description": "servidor NTP"}]
+    assert data["globals"]["ntp"] == "1.1.1.1"
+
+
+def test_parse_vars_fields_derived_from_globals():
+    data = parse_vars('{"globals": {"ntp": "1.1.1.1"}}')
+    assert data["fields"] == [{"key": "ntp", "description": ""}]
 
 
 def test_build_context_tags_list():

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('prm.title') }}</h1>
+<p class="muted">{{ t('prm.subtitle') }}</p>
+
+{% if notice %}<p class="ok">{{ notice }}</p>{% endif %}
+{% if notice_error %}<p class="error">{{ notice_error }}</p>{% endif %}
+
+<div class="card">
+  <h2>{{ t('prm.fields_title') }}</h2>
+  <p class="muted">{{ t('prm.fields_hint') }}</p>
+  {% if data.fields %}
+  <table>
+    <thead><tr><th>{{ t('prm.field_key') }}</th><th>{{ t('prm.field_desc') }}</th><th></th></tr></thead>
+    <tbody>
+    {% for f in data.fields %}
+      <tr>
+        <td><code>{{ f.key }}</code></td>
+        <td class="muted">{{ f.description }}</td>
+        <td class="nowrap">
+          <form method="post" action="/parameters/field/delete"
+                onsubmit="return confirm('{{ t('prm.field_remove') }}?')">
+            <input type="hidden" name="key" value="{{ f.key }}">
+            <button class="link danger" type="submit">{{ t('prm.field_remove') }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">{{ t('prm.none_fields') }}</p>
+  {% endif %}
+  <form method="post" action="/parameters/field/add" class="inline-form">
+    <label>{{ t('prm.field_key') }}<input name="key" placeholder="ntp" required></label>
+    <label>{{ t('prm.field_desc') }}<input name="description" placeholder="{{ t('prm.field_desc_ph') }}"></label>
+    <button class="btn primary" type="submit">{{ t('prm.field_add') }}</button>
+  </form>
+</div>
+
+{% if data.fields %}
+<div class="card">
+  <h2>{{ t('prm.globals_title') }}</h2>
+  <p class="muted">{{ t('prm.globals_hint') }}</p>
+  <form method="post" action="/parameters/globals">
+    <div class="grid2">
+      {% for f in data.fields %}
+      <label>{{ f.key }}{% if f.description %} <span class="muted">— {{ f.description }}</span>{% endif %}
+        <input name="g__{{ f.key }}" value="{{ data.globals.get(f.key, '') }}" spellcheck="false">
+      </label>
+      {% endfor %}
+    </div>
+    <button class="btn primary" type="submit">{{ t('prm.globals_save') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{ t('prm.sites_title') }}</h2>
+  <p class="muted">{{ t('prm.sites_hint') }}</p>
+
+  <form method="get" action="/parameters" class="inline-form">
+    <label>{{ t('prm.site_pick') }}
+      <select name="site" onchange="this.form.submit()">
+        <option value="">—</option>
+        {% for s in all_sites %}
+        <option value="{{ s }}" {{ 'selected' if s == sel }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button class="btn" type="submit">{{ t('prm.site_open') }}</button></noscript>
+  </form>
+
+  <form method="post" action="/parameters/site">
+    <label>{{ t('prm.site_name') }}
+      <input name="site" value="{{ sel }}" placeholder="Azulville" required>
+    </label>
+    <div class="grid2">
+      {% for f in data.fields %}
+      <label>{{ f.key }} <span class="muted">({{ t('prm.uses_global') }})</span>
+        <input name="s__{{ f.key }}" value="{{ sel_values.get(f.key, '') }}"
+               placeholder="{{ data.globals.get(f.key, '') }}" spellcheck="false">
+      </label>
+      {% endfor %}
+    </div>
+    <button class="btn primary" type="submit">{{ t('prm.site_save') }}</button>
+  </form>
+
+  {% if sel and sel in data.sites %}
+  <form method="post" action="/parameters/site/delete" style="margin-top:6px"
+        onsubmit="return confirm('{{ t('prm.site_remove') }}?')">
+    <input type="hidden" name="site" value="{{ sel }}">
+    <button class="link danger" type="submit">{{ t('prm.site_remove') }}</button>
+  </form>
+  {% endif %}
+
+  {% if data.sites %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>{{ t('prm.site_name') }}</th>
+      {% for f in data.fields %}<th>{{ f.key }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for s, vals in data.sites.items() %}
+      <tr>
+        <td><a href="/parameters?site={{ s }}">{{ s }}</a></td>
+        {% for f in data.fields %}<td>{{ vals.get(f.key, '') or '—' }}</td>{% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

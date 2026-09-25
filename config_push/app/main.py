@@ -92,8 +92,15 @@ from .settings_store import (
     media_path,
     save_media,
 )
-from .templating import TemplateVarError
-from .templating import render as render_command
+from .templating import (
+    TemplateVarError,
+    dump_vars,
+    parse_vars,
+    valid_key,
+)
+from .templating import (
+    render as render_command,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -3697,28 +3704,147 @@ def settings_pre_commands(
     return RedirectResponse("/settings", status_code=303)
 
 
-@app.post("/settings/templates")
-def settings_templates(request: Request, template_vars: str = Form("")):
-    """Variaveis de template (Jinja) globais e por site (JSON)."""
-    actor = require_role(request, {"admin"})
-    from urllib.parse import quote
+# ---------------------------------------------------------------------------
+# Parametros de rede (variaveis de template, globais e por site)
+# ---------------------------------------------------------------------------
+def _prefixed(form, prefix: str) -> dict:
+    return {k[len(prefix):]: str(v).strip() for k, v in form.items() if k.startswith(prefix)}
 
-    from .templating import parse_vars
 
-    raw = template_vars.strip()
-    try:
-        parsed = parse_vars(raw)
-    except TemplateVarError as e:
-        return RedirectResponse("/settings?notice_error=" + quote(str(e)), status_code=303)
+def _save_vars(db, actor: str, data: dict, detail: str) -> None:
+    s = get_settings(db)
+    s.template_vars = dump_vars(data)
+    audit(db, actor, "parameters_save", detail)
+    db.commit()
+
+
+@app.get("/parameters", response_class=HTMLResponse)
+def parameters_page(request: Request, site: str = ""):
+    require_role(request, MANAGE_ROLES)
     db = SessionLocal()
     try:
         s = get_settings(db)
-        s.template_vars = json.dumps(parsed, ensure_ascii=False, indent=2) if raw else ""
-        audit(db, actor["name"], "settings_templates", "global/site vars")
-        db.commit()
+        try:
+            data = parse_vars(s.template_vars or "")
+        except TemplateVarError:
+            data = {"fields": [], "globals": {}, "sites": {}}
+        dev_sites = {
+            (d.site or "").strip()
+            for d in db.scalars(select(Device)).all()
+            if (d.site or "").strip()
+        }
     finally:
         db.close()
-    return RedirectResponse("/settings", status_code=303)
+    all_sites = sorted(set(data["sites"].keys()) | dev_sites)
+    sel = site.strip()
+    return render(
+        request,
+        "parameters.html",
+        data=data,
+        all_sites=all_sites,
+        sel=sel,
+        sel_values=data["sites"].get(sel, {}) if sel else {},
+        notice=request.query_params.get("notice", ""),
+        notice_error=request.query_params.get("notice_error", ""),
+    )
+
+
+@app.post("/parameters/field/add")
+def parameters_field_add(
+    request: Request, key: str = Form(""), description: str = Form("")
+):
+    actor = require_role(request, MANAGE_ROLES)
+    from urllib.parse import quote
+
+    key = key.strip()
+    if not valid_key(key):
+        return RedirectResponse(
+            "/parameters?notice_error=" + quote("chave invalida (use letras, numeros e _)"),
+            status_code=303,
+        )
+    db = SessionLocal()
+    try:
+        data = parse_vars(get_settings(db).template_vars or "")
+        if key not in {f["key"] for f in data["fields"]}:
+            data["fields"].append({"key": key, "description": description.strip()})
+        _save_vars(db, actor["name"], data, f"field +{key}")
+    finally:
+        db.close()
+    return RedirectResponse("/parameters", status_code=303)
+
+
+@app.post("/parameters/field/delete")
+def parameters_field_delete(request: Request, key: str = Form("")):
+    actor = require_role(request, MANAGE_ROLES)
+    key = key.strip()
+    db = SessionLocal()
+    try:
+        data = parse_vars(get_settings(db).template_vars or "")
+        data["fields"] = [f for f in data["fields"] if f["key"] != key]
+        data["globals"].pop(key, None)
+        for vals in data["sites"].values():
+            vals.pop(key, None)
+        _save_vars(db, actor["name"], data, f"field -{key}")
+    finally:
+        db.close()
+    return RedirectResponse("/parameters", status_code=303)
+
+
+@app.post("/parameters/globals")
+async def parameters_globals(request: Request):
+    actor = require_role(request, MANAGE_ROLES)
+    form = await request.form()
+    values = _prefixed(form, "g__")
+    db = SessionLocal()
+    try:
+        data = parse_vars(get_settings(db).template_vars or "")
+        allowed = {f["key"] for f in data["fields"]}
+        data["globals"] = {k: v for k, v in values.items() if v and k in allowed}
+        _save_vars(db, actor["name"], data, "globals")
+    finally:
+        db.close()
+    return RedirectResponse("/parameters", status_code=303)
+
+
+@app.post("/parameters/site")
+async def parameters_site(request: Request):
+    actor = require_role(request, MANAGE_ROLES)
+    from urllib.parse import quote
+
+    form = await request.form()
+    site = str(form.get("site", "")).strip()
+    if not site:
+        return RedirectResponse(
+            "/parameters?notice_error=" + quote("informe o site"), status_code=303
+        )
+    values = _prefixed(form, "s__")
+    db = SessionLocal()
+    try:
+        data = parse_vars(get_settings(db).template_vars or "")
+        allowed = {f["key"] for f in data["fields"]}
+        vals = {k: v for k, v in values.items() if v and k in allowed}
+        if vals:
+            data["sites"][site] = vals
+        else:
+            data["sites"].pop(site, None)
+        _save_vars(db, actor["name"], data, f"site {site}")
+    finally:
+        db.close()
+    return RedirectResponse("/parameters?site=" + quote(site), status_code=303)
+
+
+@app.post("/parameters/site/delete")
+def parameters_site_delete(request: Request, site: str = Form("")):
+    actor = require_role(request, MANAGE_ROLES)
+    site = site.strip()
+    db = SessionLocal()
+    try:
+        data = parse_vars(get_settings(db).template_vars or "")
+        data["sites"].pop(site, None)
+        _save_vars(db, actor["name"], data, f"site -{site}")
+    finally:
+        db.close()
+    return RedirectResponse("/parameters", status_code=303)
 
 
 @app.post("/settings/ldap")

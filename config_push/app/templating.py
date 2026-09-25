@@ -24,6 +24,7 @@ config incompleta.
 """
 
 import json
+import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -68,28 +69,76 @@ def _clean_map(obj: dict) -> dict:
     return {str(k): _scalar(v) for k, v in obj.items()}
 
 
+_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def valid_key(key: str) -> bool:
+    """True se a chave e' um identificador valido (letras/numeros/_)."""
+    return bool(_KEY_RE.match((key or "").strip()))
+
+
 def parse_vars(raw: str) -> dict:
-    """Le o JSON de variaveis: ``{"globals": {...}, "sites": {...}}``."""
+    """Le o JSON de parametros:
+
+    ``{"fields": [{"key","description"}], "globals": {...}, "sites": {...}}``.
+
+    ``fields`` define os campos exibidos na tela; se ausente, e' derivado das
+    chaves de ``globals`` (compatibilidade com o formato antigo).
+    """
     if not (raw or "").strip():
-        return {"globals": {}, "sites": {}}
+        return {"fields": [], "globals": {}, "sites": {}}
     try:
         data = json.loads(raw)
     except (ValueError, TypeError) as e:
-        raise TemplateVarError(f"JSON de variaveis invalido: {e}") from None
+        raise TemplateVarError(f"JSON de parametros invalido: {e}") from None
     if not isinstance(data, dict):
-        raise TemplateVarError("as variaveis devem ser um objeto JSON")
+        raise TemplateVarError("os parametros devem ser um objeto JSON")
     globals_ = data.get("globals") or {}
     sites = data.get("sites") or {}
+    fields_raw = data.get("fields") or []
     if not isinstance(globals_, dict):
         raise TemplateVarError("'globals' deve ser um objeto JSON")
     if not isinstance(sites, dict):
         raise TemplateVarError("'sites' deve ser um objeto JSON")
+    if not isinstance(fields_raw, list):
+        raise TemplateVarError("'fields' deve ser uma lista")
+
+    fields: list[dict] = []
+    seen: set[str] = set()
+    for item in fields_raw:
+        if isinstance(item, dict):
+            key = str(item.get("key") or "").strip()
+            desc = str(item.get("description") or "").strip()
+        else:
+            key, desc = str(item or "").strip(), ""
+        if valid_key(key) and key not in seen:
+            seen.add(key)
+            fields.append({"key": key, "description": desc})
+    if not fields:
+        for key in globals_:
+            if valid_key(key) and key not in seen:
+                seen.add(key)
+                fields.append({"key": str(key), "description": ""})
+
     clean_sites = {}
     for site, vals in sites.items():
         if vals and not isinstance(vals, dict):
             raise TemplateVarError(f"'sites.{site}' deve ser um objeto JSON")
         clean_sites[str(site)] = _clean_map(vals or {})
-    return {"globals": _clean_map(globals_), "sites": clean_sites}
+    return {"fields": fields, "globals": _clean_map(globals_), "sites": clean_sites}
+
+
+def dump_vars(data: dict) -> str:
+    """Serializa os parametros de volta para o JSON guardado no banco."""
+    return json.dumps(
+        {
+            "fields": data.get("fields") or [],
+            "globals": data.get("globals") or {},
+            "sites": data.get("sites") or {},
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 def build_context(device: dict, all_vars: dict | None = None) -> dict:
