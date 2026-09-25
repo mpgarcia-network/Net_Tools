@@ -15,7 +15,10 @@
 - **Telas**: `Backups` (status por device + resumo do rConfig) e detalhe do device
   (versões + diff HTML), com **Backup agora** / **Backup de todos**.
 - **API v1** de backups: `GET /api/v1/backups`, `GET /api/v1/backups/{id}`,
-  `POST /api/v1/backups/{id}` (202).
+  `POST /api/v1/backups/{id}` (202) e `GET /api/v1/backups/{id}/config` (texto).
+- **Ver/baixar a config completa**: a API v1 `all-by-deviceid` devolve o texto
+  (campo `config`); a tela do device exibe a versão selecionada e
+  `/backups/{id}/config.txt?version=` baixa o arquivo.
 - **Segurança**: filtro dos campos sensíveis devolvidos pela API do rConfig
   (`device_password`, `device_enable_password`, `device_username`, `ssh_key_id`).
 

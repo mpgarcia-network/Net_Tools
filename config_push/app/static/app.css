@@ -104,6 +104,10 @@ pre.code { background: var(--code-bg); border: 1px solid var(--border); border-r
 .diff-box { border: 1px solid var(--border); border-radius: 8px; padding: 8px; overflow: auto; max-height: 520px; background: var(--code-bg); }
 .diff-box table { width: 100%; border-collapse: collapse; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; }
 .diff-box td, .diff-box th { padding: 1px 6px; white-space: pre-wrap; }
+/* Conteudo completo da config (versao selecionada) */
+.config-box { border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; max-height: 640px; background: var(--code-bg); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; white-space: pre; }
+tr.sel { background: var(--code-bg); }
+details > summary { cursor: pointer; margin: 6px 0; }
 .logo-preview { max-width: 260px; max-height: 120px; background: var(--code-bg); padding: 8px; border-radius: 8px; }
 .devlist { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin: 8px 0; }
 .devitem { margin: 4px 0; }

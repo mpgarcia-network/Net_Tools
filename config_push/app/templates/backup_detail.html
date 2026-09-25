@@ -24,15 +24,19 @@
 <h2>{{ t('bk.versions_rconfig') }}</h2>
 {% if versions %}
 <table>
-  <thead><tr><th>{{ t('bk.hash') }}</th><th>{{ t('c.version') }}</th><th>{{ t('bk.when') }}</th><th>{{ t('bk.message') }}</th></tr></thead>
+  <thead><tr><th>{{ t('bk.hash') }}</th><th>{{ t('c.version') }}</th><th>{{ t('bk.when') }}</th><th>{{ t('bk.message') }}</th><th></th></tr></thead>
   <tbody>
   {% for v in versions %}
-    <tr>
+    <tr{% if v.id == selected_id %} class="sel"{% endif %}>
       <td><code>{{ v.hash[:8] if v.hash else '-' }}</code></td>
       <td>{{ v.version or '-' }}</td>
       <td>{{ v.finished_at or v.started_at or '-' }}</td>
       <td class="muted">{{ v.command }}
         {% if v.latest %}<span class="badge">{{ t('bk.state_ok') }}</span>{% endif %}
+      </td>
+      <td class="nowrap">
+        <a href="/backups/{{ device.id }}?version={{ v.id }}">{{ t('c.view') }}</a>
+        <a href="/backups/{{ device.id }}/config.txt?version={{ v.id }}">{{ t('bk.download') }}</a>
       </td>
     </tr>
   {% endfor %}
@@ -40,6 +44,17 @@
 </table>
 {% else %}
 <p class="muted">{{ t('bk.no_backup') }}</p>
+{% endif %}
+
+{% if content %}
+<h2>{{ t('bk.content') }}
+  <span class="muted">#{{ selected_id }}{% if filename %} · {{ filename }}{% endif %}</span>
+  <a class="btn" href="/backups/{{ device.id }}/config.txt?version={{ selected_id }}">{{ t('bk.download') }}</a>
+</h2>
+<details open>
+  <summary>{{ t('bk.view_content') }}</summary>
+  <pre class="config-box">{{ content }}</pre>
+</details>
 {% endif %}
 
 {% if diff %}

@@ -152,3 +152,35 @@ def test_diff_html_parse(monkeypatch):
     payload = {"data": {"config_diff": "<table>diff</table>"}}
     monkeypatch.setattr(c, "_req", lambda *a, **k: json.dumps(payload).encode())
     assert c.diff_html("11") == "<table>diff</table>"
+
+
+def test_versions_with_content(monkeypatch):
+    c = _conn()
+    payload = {
+        "data": [
+            {"id": 4, "device_id": 2, "config_hash": "old", "config": "CONFIG-4"},
+            {"id": 11, "device_id": 2, "config_hash": "new", "config": "CONFIG-11"},
+        ]
+    }
+    monkeypatch.setattr(c, "_req", lambda *a, **k: json.dumps(payload).encode())
+    v = c.versions("2", with_content=True)
+    assert v[0]["id"] == "11"
+    assert v[0]["config"] == "CONFIG-11"
+    # sem conteudo por padrao (payload menor)
+    v2 = c.versions("2")
+    assert "config" not in v2[0]
+
+
+def test_config_text(monkeypatch):
+    c = _conn()
+    payload = {
+        "data": [
+            {"id": 4, "device_id": 2, "config": "CONFIG-4"},
+            {"id": 11, "device_id": 2, "config": "CONFIG-11"},
+        ]
+    }
+    monkeypatch.setattr(c, "_req", lambda *a, **k: json.dumps(payload).encode())
+    assert c.config_text("2", "11") == "CONFIG-11"
+    assert c.config_text("2", "999") == ""
+    # sem id: devolve a versao mais recente (maior id)
+    assert c.config_text("2", "") == "CONFIG-11"

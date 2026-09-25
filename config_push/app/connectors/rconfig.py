@@ -188,8 +188,13 @@ class RConfigConnector:
         return ok_any
 
     # -- versoes -------------------------------------------------------------
-    def versions(self, external_id: str) -> list[dict]:
-        """Todas as versoes de config do device (GET v1 all-by-deviceid)."""
+    def versions(self, external_id: str, with_content: bool = False) -> list[dict]:
+        """Todas as versoes de config do device (GET v1 all-by-deviceid).
+
+        A API v1 ``all-by-deviceid`` inclui o **texto da config** no campo
+        ``config``; com ``with_content=True`` esse texto acompanha cada versao
+        (usado para ver/baixar a config). O default omite (payload menor).
+        """
         if not self.available() or not str(external_id).strip():
             return []
         try:
@@ -197,10 +202,22 @@ class RConfigConnector:
         except Exception:  # noqa: BLE001
             return []
         rows = data if isinstance(data, list) else (data or {}).get("configs", [])
-        out = [self._slim_config(c) for c in rows if isinstance(c, dict)]
+        out = [
+            self._slim_config(c, with_content=with_content)
+            for c in rows
+            if isinstance(c, dict)
+        ]
         # mais recente primeiro (por id desc)
         out.sort(key=lambda c: int(c["id"] or 0), reverse=True)
         return out
+
+    def config_text(self, external_id: str, config_id: str = "") -> str:
+        """Conteudo (texto) de uma versao; sem ``config_id`` devolve a **ultima**."""
+        cid = str(config_id or "").strip()
+        for c in self.versions(external_id, with_content=True):
+            if not cid or str(c.get("id") or "") == cid:
+                return c.get("config") or ""
+        return ""
 
     def latest(self, external_id: str) -> dict:
         """Ultima config do device (a de maior id na lista de versoes)."""
@@ -208,8 +225,8 @@ class RConfigConnector:
         return vs[0] if vs else {}
 
     @classmethod
-    def _slim_config(cls, c: dict) -> dict:
-        return {
+    def _slim_config(cls, c: dict, with_content: bool = False) -> dict:
+        out = {
             "id": str(c.get("id") or ""),
             "device_id": str(c.get("device_id") or ""),
             "command": c.get("command") or "",
@@ -222,6 +239,9 @@ class RConfigConnector:
             "started_at": c.get("start_time") or "",
             "finished_at": c.get("end_time") or "",
         }
+        if with_content:
+            out["config"] = c.get("config") or ""
+        return out
 
     # -- diff ----------------------------------------------------------------
     def diff_html(self, config_id: str) -> str:

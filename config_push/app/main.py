@@ -2786,6 +2786,54 @@ def api_backup_trigger(request: Request, device_id: int, _doc=Depends(_api_doc))
     return JSONResponse({"device_id": device_id, "status": "requested"}, status_code=202)
 
 
+@app.get(
+    "/api/v1/backups/{device_id}/config",
+    tags=["API v1"],
+    summary="Conteudo de uma versao do backup (rConfig)",
+)
+def api_backup_config(
+    request: Request, device_id: int, config_id: str = "", _doc=Depends(_api_doc)
+):
+    """Texto de uma versao da config. Sem `config_id`, devolve a ultima."""
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    db = SessionLocal()
+    try:
+        d = db.get(Device, device_id)
+        if not d:
+            return _api_error(404, "device nao encontrado")
+        if not can_target(user["role"], d.site_role):
+            return _api_error(403, "device fora do escopo do token")
+        conn = _rconfig_connector(db)
+        if not conn.available():
+            return _api_error(503, "rConfig nao configurado")
+        ext = str(_rconfig_for(_rconfig_index(conn), d).get("id") or "")
+        name = d.name
+    finally:
+        db.close()
+    if not ext:
+        return _api_error(400, "device nao vinculado ao rConfig (IP nao encontrado)")
+    cid = config_id
+    content = ""
+    if cid:
+        content = conn.config_text(ext, cid)
+    else:
+        vs = conn.versions(ext, with_content=True)
+        if vs:
+            cid = vs[0].get("id") or ""
+            content = vs[0].get("config") or ""
+    if not content:
+        return _api_error(404, "config nao encontrada")
+    return JSONResponse(
+        {
+            "device_id": device_id,
+            "device": name,
+            "rconfig_id": ext,
+            "config_id": str(cid),
+            "content": content,
+        }
+    )
+
+
 @app.get("/runs/{run_id}/export.csv")
 def run_export(request: Request, run_id: int):
     require_login(request)
@@ -3221,26 +3269,29 @@ def backup_detail(request: Request, device_id: int, version: str = ""):
             "port": device.port,
         }
         versions: list[dict] = []
-        latest = {}
+        latest: dict = {}
         diff = ""
+        content = ""
+        filename = ""
+        cid = str(version or "")
         if rconfig_ok and ext:
             try:
-                versions = conn.versions(ext)
+                versions = conn.versions(ext, with_content=True)
             except Exception:  # noqa: BLE001
                 versions = []
-            try:
-                latest = conn.latest(ext) or {}
-            except Exception:  # noqa: BLE001
-                latest = {}
-            cid = version or (latest.get("id") if latest else "") or (
-                versions[0].get("id") if versions else ""
-            )
+            latest = versions[0] if versions else {}
+            cid = cid or str(latest.get("id") or "")
             if cid:
+                for v in versions:
+                    if str(v.get("id") or "") == cid:
+                        content = v.get("config") or ""
+                        filename = v.get("filename") or ""
+                        break
                 try:
                     diff = conn.diff_html(str(cid))
                 except Exception:  # noqa: BLE001
                     diff = ""
-                if cid and str(cid) != (device.last_config_id or ""):
+                if str(cid) != (device.last_config_id or ""):
                     device.last_config_id = str(cid)
                     device.last_config_at = utcnow()
                     db.commit()
@@ -3255,7 +3306,38 @@ def backup_detail(request: Request, device_id: int, version: str = ""):
         versions=versions,
         latest=latest,
         diff=diff,
+        content=content,
+        filename=filename,
+        selected_id=cid,
         selected=version,
+    )
+
+
+@app.get("/backups/{device_id}/config.txt")
+def backup_config_download(request: Request, device_id: int, version: str = ""):
+    """Baixa o texto de uma versao da config (via API do rConfig)."""
+    require_login(request)
+    db = SessionLocal()
+    try:
+        device = db.get(Device, device_id)
+        if not device:
+            raise HTTPException(404, "device nao encontrado")
+        conn = _rconfig_connector(db)
+        ext = str(_rconfig_for(_rconfig_index(conn), device).get("id") or "")
+        name = device.name
+        if not conn.available() or not ext:
+            raise HTTPException(400, "device nao vinculado ao rConfig")
+        text = conn.config_text(ext, version)
+    finally:
+        db.close()
+    if not text:
+        raise HTTPException(404, "config nao encontrada")
+    safe = "".join(ch for ch in name if ch.isalnum() or ch in "-_.") or "device"
+    fname = f"{safe}_{version or 'latest'}.txt"
+    return Response(
+        content=text,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
 
 
