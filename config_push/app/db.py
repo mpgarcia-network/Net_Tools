@@ -86,6 +86,10 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN maintenance_password_enc TEXT DEFAULT ''"))
             if "site_role" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN site_role VARCHAR(20) DEFAULT ''"))
+            if "last_config_id" not in cols:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN last_config_id VARCHAR(191) DEFAULT ''"))
+            if "last_config_at" not in cols:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN last_config_at DATETIME"))
     if "snippets" in insp.get_table_names():
         scols = {c["name"] for c in insp.get_columns("snippets")}
         if "drivers" not in scols:

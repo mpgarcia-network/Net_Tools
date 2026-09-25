@@ -2,51 +2,48 @@
 {% block content %}
 <div class="row between">
   <h1>{{ device.name }} <span class="muted">({{ device.ip }})</span></h1>
-  {% if user.role in ['admin','operator_advanced'] %}
+  {% if user.role in ['admin','operator_advanced'] and rconfig_ok and linked %}
   <form method="post" action="/backups/collect/{{ device.id }}">
-    <button class="btn primary" type="submit">{{ t('bk.collect') }}</button>
+    <button class="btn primary" type="submit">{{ t('bk.backup_now') }}</button>
   </form>
   {% endif %}
 </div>
-<p class="muted">{{ device.vendor }} · {{ device.device_type }} · :{{ device.port }}</p>
+<p class="muted">{{ device.vendor }} · {{ device.device_type }} · :{{ device.port }} ·
+  <span class="badge">{{ t('bk.source_rconfig') }}</span></p>
 
-<h2>{{ t('bk.versions') }}</h2>
+{% if not rconfig_ok %}
+<p class="error">{{ t('bk.not_configured') }}</p>
+{% elif not linked %}
+<p class="error">{{ t('bk.not_linked') }}</p>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<p class="error">{{ t('bk.trigger_failed') }}</p>
+{% endif %}
+
+<h2>{{ t('bk.versions_rconfig') }}</h2>
 {% if versions %}
 <table>
-  <thead><tr><th>{{ t('bk.hash') }}</th><th>{{ t('bk.when') }}</th><th>{{ t('bk.message') }}</th></tr></thead>
+  <thead><tr><th>{{ t('bk.hash') }}</th><th>{{ t('c.version') }}</th><th>{{ t('bk.when') }}</th><th>{{ t('bk.message') }}</th></tr></thead>
   <tbody>
   {% for v in versions %}
     <tr>
-      <td><code>{{ v.short }}</code></td>
-      <td>{{ v.time }}</td>
-      <td class="muted">{{ v.message }}</td>
+      <td><code>{{ v.hash[:8] if v.hash else '-' }}</code></td>
+      <td>{{ v.version or '-' }}</td>
+      <td>{{ v.finished_at or v.started_at or '-' }}</td>
+      <td class="muted">{{ v.command }}
+        {% if v.latest %}<span class="badge">{{ t('bk.state_ok') }}</span>{% endif %}
+      </td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
 {% else %}
-<p class="muted">{{ t('bk.no_versions') }}</p>
+<p class="muted">{{ t('bk.no_backup') }}</p>
 {% endif %}
 
-<h2>{{ t('bk.diff') }}</h2>
-<pre class="code">{{ diff or t('rd.no_diff') }}</pre>
-
-<h2>{{ t('bk.history') }}</h2>
-<table>
-  <thead><tr><th>#</th><th>{{ t('bk.when') }}</th><th>{{ t('c.status') }}</th><th>{{ t('bk.changed') }}</th><th>{{ t('bk.hash') }}</th><th>{{ t('bk.message') }}</th></tr></thead>
-  <tbody>
-  {% for h in history %}
-    <tr>
-      <td>{{ h.id }}</td>
-      <td>{{ h.created_at.strftime('%d/%m/%Y %H:%M:%S') if h.created_at else '' }}</td>
-      <td><span class="st st-{{ 'success' if h.status == 'ok' else 'failed' }}">{{ t('bk.state_' ~ ('ok' if h.status == 'ok' else 'failed')) }}</span></td>
-      <td>{{ t('c.yes') if h.changed else t('c.no') }}</td>
-      <td>{% if h.config_hash %}<code>{{ h.config_hash[:8] }}</code>{% endif %}</td>
-      <td class="muted">{{ h.message }}</td>
-    </tr>
-  {% else %}
-    <tr><td colspan="6" class="muted">-</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+{% if diff %}
+<h2>{{ t('bk.diff_rconfig') }}</h2>
+<div class="diff-box">{{ diff|safe }}</div>
+{% endif %}
 {% endblock %}

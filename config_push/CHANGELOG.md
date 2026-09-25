@@ -1,5 +1,21 @@
 # Changelog — Net Tools
 
+## v0.5.0 — 2026-09-25
+
+**Backup oficial pelo rConfig**
+- **Conector rConfig reescrito** com os endpoints reais (rConfig v8): inventário e
+  resumo pela **v2** (`/api/v2/devices`, `/api/v2/devices/summary`), **versões** pela
+  **v1** (`/api/v1/configs/all-by-deviceid/{id}`) e **disparo de coleta** pela **v1**
+  (`/api/v1/download-now/{id}`); diff por `/api/v2/config-changes/by-config/{id}`.
+- O app **não coleta** config: **exibe e dispara** no rConfig (quem executa é o rConfig);
+  `last_config_id`/`last_config_at` sincronizados a partir do rConfig.
+- **Telas**: `Backups` (status por device + resumo do rConfig) e detalhe do device
+  (versões + diff HTML), com **Backup agora** / **Backup de todos**.
+- **API v1** de backups: `GET /api/v1/backups`, `GET /api/v1/backups/{id}`,
+  `POST /api/v1/backups/{id}` (202).
+- **Segurança**: filtro dos campos sensíveis devolvidos pela API do rConfig
+  (`device_password`, `device_enable_password`, `device_username`, `ssh_key_id`).
+
 ## v0.4.0 — 2026-09-21
 
 **Papéis de equipamento + níveis de operador (alçada)**

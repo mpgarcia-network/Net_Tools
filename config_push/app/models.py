@@ -63,6 +63,9 @@ class Device(Base):
     source: Mapped[str] = mapped_column(String(20), default="manual", index=True)
     # ID na fonte externa (correlacao entre ferramentas)
     external_id: Mapped[str] = mapped_column(String(191), default="")
+    # Ultimo config_id conhecido no rConfig (backup oficial) e quando foi visto
+    last_config_id: Mapped[str] = mapped_column(String(191), default="")
+    last_config_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

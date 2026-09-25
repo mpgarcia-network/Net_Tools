@@ -2,47 +2,61 @@
 {% block content %}
 <div class="row between">
   <h1>{{ t('bk.title') }}</h1>
-  {% if user.role in ['admin','operator_advanced'] %}
+  {% if user.role in ['admin','operator_advanced'] and rconfig_ok %}
   <form method="post" action="/backups/collect-all"
-        onsubmit="return confirm('{{ t('bk.collect_all') }}?')">
-    <button class="btn primary" type="submit">{{ t('bk.collect_all') }}</button>
+        onsubmit="return confirm('{{ t('bk.backup_all') }}?')">
+    <button class="btn primary" type="submit">{{ t('bk.backup_all') }}</button>
   </form>
   {% endif %}
 </div>
 
+{% if request.query_params.get('error') %}
+<p class="error">{{ t('bk.trigger_failed') }}</p>
+{% endif %}
+
+{% if not rconfig_ok %}
+<p class="error">{{ t('bk.not_configured') }}</p>
+{% else %}
 <p class="muted">
-  {{ t('bk.summary', ok=counts.ok, failed=counts.failed, stale=counts.stale, never=counts.never) }}
+  <span class="badge">{{ t('bk.source_rconfig') }}</span>
+  {% if summary %}
+  {{ t('bk.rconfig_summary', total=summary.total_devices, ok=summary.backup_success_last_run,
+       fail=summary.backup_failed_last_run, never=summary.never_backed_up,
+       last=summary.last_run_at or '-') }}
+  {% else %}
+  {{ t('bk.rconfig_summary_empty') }}
+  {% endif %}
   · {{ t('bk.stale_hint', h=stale_hours) }}
 </p>
+{% endif %}
 
 <table>
-  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.status') }}</th><th>{{ t('bk.last') }}</th><th>{{ t('bk.changed') }}</th><th></th></tr></thead>
+  <thead><tr><th>#</th><th>{{ t('c.name') }}</th><th>{{ t('c.ip') }}</th><th>{{ t('c.status') }}</th><th>{{ t('bk.last') }}</th><th></th></tr></thead>
   <tbody>
   {% for it in items %}
-    {% set d = it.device %}
     {% set st = it.state %}
     <tr>
-      <td>{{ d.id }}</td>
-      <td>{{ d.name }}</td>
-      <td>{{ d.ip }}</td>
+      <td>{{ it.id }}</td>
+      <td>{{ it.name }}</td>
+      <td>{{ it.ip }}</td>
       <td>
         <span class="st st-{{ 'success' if st == 'ok' else 'failed' if st == 'failed' else 'running' if st == 'stale' else 'pending' }}">
-          {{ t('bk.state_' ~ st) }}
+          {{ t('bk.state_' ~ (st if st in ['ok','stale','never'] else 'never')) }}
         </span>
+        {% if st == 'unlinked' %}<span class="muted">{{ t('bk.not_linked') }}</span>{% endif %}
       </td>
-      <td>{{ it.last.created_at.strftime('%d/%m/%Y %H:%M') if it.last and it.last.created_at else '-' }}</td>
-      <td>{{ t('c.yes') if it.last and it.last.changed else t('c.no') if it.last else '-' }}</td>
+      <td>{{ it.last_at_text or '-' }}</td>
       <td class="nowrap">
-        <a href="/backups/{{ d.id }}">{{ t('c.view') }}</a>
-        {% if user.role in ['admin','operator_advanced'] %}
-        <form method="post" action="/backups/collect/{{ d.id }}" style="display:inline">
-          <button class="link" type="submit">{{ t('bk.collect') }}</button>
+        <a href="/backups/{{ it.id }}">{{ t('c.view') }}</a>
+        {% if user.role in ['admin','operator_advanced'] and rconfig_ok and it.external_id %}
+        <form method="post" action="/backups/collect/{{ it.id }}" style="display:inline">
+          <button class="link" type="submit">{{ t('bk.backup_now') }}</button>
         </form>
         {% endif %}
       </td>
     </tr>
   {% else %}
-    <tr><td colspan="7" class="muted">{{ t('dev.empty') }}</td></tr>
+    <tr><td colspan="6" class="muted">{{ t('dev.empty') }}</td></tr>
   {% endfor %}
   </tbody>
 </table>

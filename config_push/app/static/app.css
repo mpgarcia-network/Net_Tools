@@ -101,6 +101,9 @@ th { color: var(--muted); font-weight: 600; }
 .muted { color: var(--muted); } .error { color: var(--link-danger); } .ok { color: var(--link-ok); }
 .nowrap { white-space: nowrap; }
 pre.code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow: auto; max-height: 420px; }
+.diff-box { border: 1px solid var(--border); border-radius: 8px; padding: 8px; overflow: auto; max-height: 520px; background: var(--code-bg); }
+.diff-box table { width: 100%; border-collapse: collapse; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; }
+.diff-box td, .diff-box th { padding: 1px 6px; white-space: pre-wrap; }
 .logo-preview { max-width: 260px; max-height: 120px; background: var(--code-bg); padding: 8px; border-radius: 8px; }
 .devlist { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin: 8px 0; }
 .devitem { margin: 4px 0; }

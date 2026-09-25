@@ -2637,61 +2637,79 @@ def api_compliance_run_detail(request: Request, compliance_run_id: int, _doc=Dep
 
 
 # --- backup via API (status Git interno + status rConfig) -------------------
-@app.get("/api/v1/backups", tags=["API v1"], summary="Status de backup (Git interno + rConfig)")
+@app.get("/api/v1/backups", tags=["API v1"], summary="Status de backup (rConfig)")
 def api_backups(request: Request, _doc=Depends(_api_doc)):
     user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     db = SessionLocal()
     try:
         devices = list(db.scalars(select(Device).order_by(Device.name)).all())
-        latest: dict[int, Backup] = {}
-        for b in db.scalars(select(Backup).order_by(Backup.created_at.desc())).all():
-            if b.device_id is not None and b.device_id not in latest:
-                latest[b.device_id] = b
-    finally:
-        db.close()
-    now = utcnow()
-    data = []
-    for d in devices:
-        if not can_target(user["role"], d.site_role):
-            continue
-        b = latest.get(d.id)
-        status = "never"
-        if b is not None:
-            age_h = (now - b.created_at).total_seconds() / 3600 if b.created_at else 999
-            if b.status != "ok":
-                status = "failed"
-            elif age_h > BACKUP_STALE_HOURS:
+        conn = _rconfig_connector(db)
+        rconfig_ok = conn.available()
+        status_map: dict[str, dict] = {}
+        summary: dict = {}
+        if rconfig_ok:
+            try:
+                for d in conn.list_devices():
+                    status_map[str(d.get("external_id") or "")] = d
+            except Exception:  # noqa: BLE001
+                status_map = {}
+            try:
+                summary = conn.summary()
+            except Exception:  # noqa: BLE001
+                summary = {}
+        now = utcnow()
+        data = []
+        for d in devices:
+            if not can_target(user["role"], d.site_role):
+                continue
+            ext = (d.external_id or "").strip()
+            info = status_map.get(ext) if ext else None
+            last_id = str(info.get("last_config_id") or "") if info else (d.last_config_id or "")
+            last_at = d.last_config_at
+            if not ext and not last_id:
+                status = "unlinked"
+            elif not last_id:
+                status = "never"
+            elif last_at and (now - last_at) > timedelta(hours=BACKUP_STALE_HOURS):
                 status = "stale"
             else:
                 status = "ok"
-        data.append(
-            {
-                "device_id": d.id,
-                "device": d.name,
-                "ip": d.ip,
-                "site": d.site,
-                "status": status,
-                "last": {
-                    "hash": b.config_hash,
-                    "changed": b.changed,
-                    "at": b.created_at.isoformat() if b.created_at else None,
+            data.append(
+                {
+                    "device_id": d.id,
+                    "device": d.name,
+                    "ip": d.ip,
+                    "site": d.site,
+                    "external_id": ext,
+                    "status": status,
+                    "source": "rconfig",
+                    "last_config_id": last_id or None,
+                    "last_at": last_at.isoformat() if last_at else None,
                 }
-                if b
-                else None,
-            }
-        )
-    return JSONResponse({"count": len(data), "backups": data})
+            )
+    finally:
+        db.close()
+    return JSONResponse(
+        {
+            "source": "rconfig",
+            "rconfig_available": rconfig_ok,
+            "summary": summary,
+            "count": len(data),
+            "backups": data,
+        }
+    )
 
 
 @app.get(
     "/api/v1/backups/{device_id}",
     tags=["API v1"],
-    summary="Versoes (Git) e diff do backup de um device",
+    summary="Versoes e diff do backup (rConfig) de um device",
 )
 def api_backup_device(
     request: Request,
     device_id: int,
     limit: int = 20,
+    config_id: str = "",
     _doc=Depends(_api_doc),
 ):
     user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
@@ -2702,23 +2720,75 @@ def api_backup_device(
             return _api_error(404, "device nao encontrado")
         if not can_target(user["role"], d.site_role):
             return _api_error(403, "device fora do escopo do token")
+        ext = (d.external_id or "").strip()
         name = d.name
+        conn = _rconfig_connector(db)
+        rconfig_ok = conn.available()
+        versions: list[dict] = []
+        latest: dict = {}
+        if rconfig_ok and ext:
+            try:
+                versions = conn.versions(ext)[: max(1, min(limit, 100))]
+            except Exception:  # noqa: BLE001
+                versions = []
+            try:
+                latest = conn.latest(ext) or {}
+            except Exception:  # noqa: BLE001
+                latest = {}
     finally:
         db.close()
-    limit = max(1, min(limit, 100))
-    versions = bk.versions(name, limit=limit)
-    data = [
-        {"hash": v.get("hash"), "short": v.get("short"), "message": v.get("message"), "time": v.get("time")}
-        for v in versions
-    ]
-    diff = ""
-    if len(versions) >= 2:
-        diff = bk.diff(
-            name, versions[1].get("hash"), versions[0].get("hash")
-        )
-    return JSONResponse(
-        {"device_id": device_id, "device": name, "versions": data, "last_diff": (diff or "")[-20000:]}
+    cid = config_id or (latest.get("id") if latest else "") or (
+        versions[0].get("id") if versions else ""
     )
+    diff = ""
+    if cid:
+        try:
+            diff = conn.diff_html(str(cid))
+        except Exception:  # noqa: BLE001
+            diff = ""
+    return JSONResponse(
+        {
+            "device_id": device_id,
+            "device": name,
+            "source": "rconfig",
+            "rconfig_available": rconfig_ok,
+            "external_id": ext or None,
+            "config_id": str(cid) or None,
+            "versions": versions,
+            "last_diff": (diff or "")[-20000:],
+        }
+    )
+
+
+@app.post(
+    "/api/v1/backups/{device_id}",
+    tags=["API v1"],
+    summary="Solicita ao rConfig o backup de um device",
+    status_code=202,
+)
+def api_backup_trigger(request: Request, device_id: int, _doc=Depends(_api_doc)):
+    user = require_api(request, MANAGE_ROLES)
+    db = SessionLocal()
+    try:
+        d = db.get(Device, device_id)
+        if not d:
+            return _api_error(404, "device nao encontrado")
+        if not can_target(user["role"], d.site_role):
+            return _api_error(403, "device fora do escopo do token")
+        conn = _rconfig_connector(db)
+        if not conn.available():
+            return _api_error(503, "rConfig nao configurado")
+        ext = (d.external_id or "").strip()
+        if not ext:
+            return _api_error(400, "device nao vinculado ao rConfig (sem external_id)")
+        ok = conn.trigger_backup(ext)
+        audit(db, user["name"], "api_rconfig_backup", f"{d.name} (id rconfig {ext})")
+        db.commit()
+    finally:
+        db.close()
+    if not ok:
+        return _api_error(502, "falha ao solicitar backup ao rConfig")
+    return JSONResponse({"device_id": device_id, "status": "requested"}, status_code=202)
 
 
 @app.get("/runs/{run_id}/export.csv")
@@ -2994,92 +3064,215 @@ def healthz():
 BACKUP_STALE_HOURS = 24
 
 
+def _rconfig_connector(db):
+    """Instancia o conector rConfig com a conexao configurada (Settings; env)."""
+    try:
+        cfg = integration_config(db).get("rconfig", {})
+    except Exception:  # noqa: BLE001
+        cfg = {}
+    return RConfigConnector(**cfg)
+
+
+def _rconfig_status_map(conn) -> dict[str, dict]:
+    """Mapeia external_id (device do rConfig) -> ultima config conhecida."""
+    if not conn.available():
+        return {}
+    out: dict[str, dict] = {}
+    try:
+        for d in conn.list_devices():
+            ext = str(d.get("external_id") or "")
+            if ext:
+                out[ext] = {"last_config_id": d.get("last_config_id") or ""}
+    except Exception:  # noqa: BLE001
+        return {}
+    return out
+
+
 @app.get("/backups", response_class=HTMLResponse)
 def backups_list(request: Request):
+    """Status de backup dos devices, conforme o rConfig (fonte oficial)."""
     require_login(request)
     db = SessionLocal()
     try:
         devices = db.scalars(select(Device).order_by(Device.name)).all()
-        rows = db.scalars(
-            select(Backup).order_by(Backup.id.desc()).limit(5000)
-        ).all()
+        conn = _rconfig_connector(db)
+        summary = conn.summary()
+        # atualiza last_config_id/last_config_at a partir do rConfig
+        linked = conn.available()
+        status_map: dict[str, dict] = {}
+        if linked:
+            try:
+                for d in conn.list_devices():
+                    status_map[str(d.get("external_id") or "")] = d
+            except Exception:  # noqa: BLE001
+                status_map = {}
+        now = utcnow()
+        counts = {"ok": 0, "failed": 0, "stale": 0, "never": 0, "unlinked": 0}
+        for d in devices:
+            ext = (d.external_id or "").strip()
+            info = status_map.get(ext) if ext else None
+            last_id = ""
+            if info:
+                last_id = str(info.get("last_config_id") or "")
+                if last_id and last_id != (d.last_config_id or ""):
+                    d.last_config_id = last_id
+                    d.last_config_at = now
+            last_id = last_id or (d.last_config_id or "")
+            last_at = d.last_config_at
+            if not ext and not last_id:
+                state = "unlinked"
+            elif not last_id:
+                state = "never"
+            elif last_at and (now - last_at) > timedelta(hours=BACKUP_STALE_HOURS):
+                state = "stale"
+            else:
+                state = "ok"
+            counts[state] += 1
+        db.commit()
+        # monta os itens como dicts (evita DetachedInstanceError apos close)
+        items = []
+        for d in devices:
+            ext = (d.external_id or "").strip()
+            last_id = (d.last_config_id or "") or ""
+            last_at = d.last_config_at
+            if not ext and not last_id:
+                state = "unlinked"
+            elif not last_id:
+                state = "never"
+            elif last_at and (now - last_at) > timedelta(hours=BACKUP_STALE_HOURS):
+                state = "stale"
+            else:
+                state = "ok"
+            items.append(
+                {
+                    "id": d.id,
+                    "name": d.name,
+                    "ip": d.ip,
+                    "external_id": ext,
+                    "last_config_id": last_id,
+                    "last_at_text": last_at.strftime("%d/%m/%Y %H:%M") if last_at else "",
+                    "state": state,
+                }
+            )
+        rconfig_ok = conn.available()
     finally:
         db.close()
-    last: dict[int, Backup] = {}
-    for b in rows:
-        if b.device_id and b.device_id not in last:
-            last[b.device_id] = b
-    now = utcnow()
-    items = []
-    counts = {"ok": 0, "failed": 0, "stale": 0, "never": 0}
-    for d in devices:
-        b = last.get(d.id)
-        if b is None:
-            state = "never"
-        elif b.status != "ok":
-            state = "failed"
-        elif b.created_at and (now - b.created_at) > timedelta(hours=BACKUP_STALE_HOURS):
-            state = "stale"
-        else:
-            state = "ok"
-        counts[state] += 1
-        items.append({"device": d, "last": b, "state": state})
     return render(
         request,
         "backups.html",
         items=items,
         counts=counts,
+        summary=summary,
         stale_hours=BACKUP_STALE_HOURS,
+        rconfig_ok=rconfig_ok,
     )
 
 
 @app.post("/backups/collect-all")
 def backups_collect_all(request: Request):
+    """Pede ao rConfig o backup de todos os devices vinculados."""
     user = require_role(request, MANAGE_ROLES)
+    lang = user.get("language") or "pt"
     db = SessionLocal()
     try:
-        audit(db, user["name"], "backup_all", "coleta em lote")
+        conn = _rconfig_connector(db)
+        if not conn.available():
+            raise HTTPException(400, translate(lang, "bk.not_configured"))
+        ids = [
+            (d.external_id or "").strip()
+            for d in db.scalars(select(Device).where(Device.external_id != "")).all()
+            if (d.external_id or "").strip()
+        ]
+        ok = conn.trigger_backup_many(ids) if ids else False
+        audit(db, user["name"], "rconfig_backup_all", f"{len(ids)} device(s)")
         db.commit()
     finally:
         db.close()
-    start_backup_all_async("manual", user["name"])
-    return RedirectResponse("/backups", status_code=303)
+    target = "/backups" if ok else "/backups?error=1"
+    return RedirectResponse(target, status_code=303)
 
 
 @app.post("/backups/collect/{device_id}")
 def backups_collect(request: Request, device_id: int):
+    """Pede ao rConfig o backup de um device (quem executa e' o rConfig)."""
     user = require_role(request, MANAGE_ROLES)
-    collect_backup(device_id, "manual", user["name"])
-    return RedirectResponse(f"/backups/{device_id}", status_code=303)
+    lang = user.get("language") or "pt"
+    db = SessionLocal()
+    try:
+        device = db.get(Device, device_id)
+        if not device:
+            raise HTTPException(404, "device nao encontrado")
+        conn = _rconfig_connector(db)
+        if not conn.available():
+            raise HTTPException(400, translate(lang, "bk.not_configured"))
+        ext = (device.external_id or "").strip()
+        if not ext:
+            raise HTTPException(400, translate(lang, "bk.not_linked"))
+        ok = conn.trigger_backup(ext)
+        audit(db, user["name"], "rconfig_backup", f"{device.name} (id rconfig {ext})")
+        db.commit()
+    finally:
+        db.close()
+    suffix = "" if ok else "?error=1"
+    return RedirectResponse(f"/backups/{device_id}{suffix}", status_code=303)
 
 
 @app.get("/backups/{device_id}", response_class=HTMLResponse)
-def backup_detail(request: Request, device_id: int):
+def backup_detail(request: Request, device_id: int, version: str = ""):
+    """Versoes + diff (rConfig) de um device. `version` = config_id a exibir."""
     require_login(request)
     db = SessionLocal()
     try:
         device = db.get(Device, device_id)
         if not device:
             raise HTTPException(404, "device nao encontrado")
-        history = db.scalars(
-            select(Backup)
-            .where(Backup.device_id == device_id)
-            .order_by(Backup.id.desc())
-            .limit(100)
-        ).all()
+        conn = _rconfig_connector(db)
+        ext = (device.external_id or "").strip()
+        dev_view = {
+            "id": device.id,
+            "name": device.name,
+            "ip": device.ip,
+            "vendor": device.vendor,
+            "device_type": device.device_type,
+            "port": device.port,
+        }
+        versions: list[dict] = []
+        latest = {}
+        diff = ""
+        if conn.available() and ext:
+            try:
+                versions = conn.versions(ext)
+            except Exception:  # noqa: BLE001
+                versions = []
+            try:
+                latest = conn.latest(ext) or {}
+            except Exception:  # noqa: BLE001
+                latest = {}
+            cid = version or (latest.get("id") if latest else "") or (
+                versions[0].get("id") if versions else ""
+            )
+            if cid:
+                try:
+                    diff = conn.diff_html(str(cid))
+                except Exception:  # noqa: BLE001
+                    diff = ""
+                if cid and str(cid) != (device.last_config_id or ""):
+                    device.last_config_id = str(cid)
+                    device.last_config_at = utcnow()
+                    db.commit()
+        rconfig_ok = conn.available()
     finally:
         db.close()
-    from . import backup as bk
-
-    versions = bk.versions(device.name)
-    diff = bk.diff(device.name)
     return render(
         request,
         "backup_detail.html",
-        device=device,
-        history=history,
+        device=dev_view,
+        rconfig_ok=rconfig_ok,
+        linked=bool(ext),
         versions=versions,
+        latest=latest,
         diff=diff,
+        selected=version,
     )
 
 
@@ -4076,8 +4269,6 @@ def compliance_device(request: Request, device_id: int):
         ]
     finally:
         db.close()
-    from . import backup as bk
-
     versions = bk.versions(device.name)
     diff = bk.diff(device.name)
     return render(
