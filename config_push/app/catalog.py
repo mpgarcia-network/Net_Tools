@@ -64,6 +64,16 @@ VENDORS: dict[str, list[tuple[str, str]]] = {
     v: sorted(_VENDORS[v], key=lambda x: x[0]) for v in sorted(_VENDORS.keys(), key=str.lower)
 }
 
+# driver padrao do vendor quando nenhum modelo foi informado (o primeiro da
+# lista alfabetica nem sempre e' o mais comum; ex.: Cisco -> IOS, nao ASA).
+_VENDOR_DEFAULT: dict[str, str] = {
+    "cisco": "cisco_ios",
+    "aruba": "hp_procurve",
+    "hp": "hp_procurve",
+    "hpe": "hp_procurve",
+    "dell": "dell_os6",
+}
+
 # nome amigavel do driver
 DRIVER_LABELS: dict[str, str] = {
     "aruba_aoscx": "Aruba AOS-CX",
@@ -108,6 +118,8 @@ def resolve_driver(vendor: str, model: str = "", explicit: str = "") -> str:
         for m, driver in models:
             if _norm(m) == model_key:
                 return driver
+        if vendor_key in _VENDOR_DEFAULT:
+            return _VENDOR_DEFAULT[vendor_key]
         if models:
             return models[0][1]
     return _DEFAULT_DRIVER

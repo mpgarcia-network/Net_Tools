@@ -1,10 +1,12 @@
+import os
 import re
 import secrets
 import time
 from pathlib import Path
 
-from .config import settings
+from .config import env_bool, settings
 from .models import Setting
+from .security import decrypt_secret
 
 MEDIA_DIR: Path = settings.data_dir / "media"
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
@@ -95,6 +97,34 @@ _brand_cache: dict = {"ts": 0.0, "data": None}
 
 def invalidate_branding() -> None:
     _brand_cache["data"] = None
+
+
+def integration_config(db) -> dict[str, dict]:
+    """Conexoes (LibreNMS/rConfig) efetivas: banco primeiro, senao env.
+
+    Devolve ``{"librenms": {base, token, verify}, "rconfig": {...}}``.
+    """
+    s = get_settings(db)
+    ln_url = (s.librenms_url or "").strip()
+    rc_url = (s.rconfig_url or "").strip()
+    return {
+        "librenms": {
+            "base": (ln_url or os.environ.get("LIBRENMS_URL") or "").rstrip("/"),
+            "token": decrypt_secret(s.librenms_token_enc)
+            or (os.environ.get("LIBRENMS_TOKEN") or ""),
+            "verify": s.librenms_verify_tls
+            if ln_url
+            else env_bool("LIBRENMS_VERIFY_TLS", True),
+        },
+        "rconfig": {
+            "base": (rc_url or os.environ.get("RCONFIG_URL") or "").rstrip("/"),
+            "token": decrypt_secret(s.rconfig_token_enc)
+            or (os.environ.get("RCONFIG_TOKEN") or ""),
+            "verify": s.rconfig_verify_tls
+            if rc_url
+            else env_bool("RCONFIG_VERIFY_TLS", True),
+        },
+    }
 
 
 def branding(db) -> dict:

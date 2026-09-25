@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".venv", "data", "__pycache__"]
+
+[tool.ruff.lint]
+# Selecao enxuta e realista: bugs de verdade (imports, nomes, variaveis) sem
+# transformar o CI em refactor do app inteiro. Regras de estilo barulhentas
+# (B008 do FastAPI/Depends, blind-except intencional etc.) ficam de fora.
+select = ["F", "E9", "I", "W6"]
+ignore = ["F401"]
+
+[tool.ruff.lint.per-file-ignores]
+# testes podem ter linhas longas e imports apos setup de ambiente
+"tests/*" = ["E501", "E402", "I001"]

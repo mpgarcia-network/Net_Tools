@@ -11,7 +11,6 @@ from urllib.parse import urlsplit
 
 from croniter import croniter
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -19,14 +18,14 @@ from fastapi.responses import (
     RedirectResponse,
     Response,
 )
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import selectinload
 from starlette.middleware.sessions import SessionMiddleware
 
-from .config import BASE_DIR, settings
-from .catalog import VENDORS, all_drivers, resolve_driver, resolve_os_driver
+from . import backup as bk
 from .access import (
     ADMIN_ROLES,
     ALL_ROLES,
@@ -39,10 +38,14 @@ from .access import (
     can_target,
     normalize_site_role,
 )
+from .catalog import VENDORS, all_drivers, resolve_driver, resolve_os_driver
+from .compliance import select_devices, start_policy_async
+from .config import BASE_DIR, settings
 from .connectors.librenms import LibreNMSConnector
 from .connectors.rconfig import RConfigConnector
 from .db import Base, SessionLocal, engine, ensure_schema, utcnow
-from .i18n import LANGS, t as translate, translator
+from .i18n import LANGS, translator
+from .i18n import t as translate
 from .importer import parse_devices
 from .models import (
     ApiToken,
@@ -59,8 +62,6 @@ from .models import (
     Snippet,
     User,
 )
-from .compliance import select_devices, start_policy_async
-from . import backup as bk
 from .security import (
     MIN_PASSWORD_LEN,
     encrypt_secret,
@@ -75,6 +76,7 @@ from .service import (
     create_run,
     notify,
     recover_orphans,
+    save_run_configs,
     schedule_has_pending,
     schedule_next,
     start_backup_all_async,
@@ -2136,7 +2138,7 @@ def api_device_create(body: ApiDeviceIn, request: Request, _doc=Depends(_api_doc
         data = _serialize_device(d, detail=True)
     finally:
         db.close()
-    return JSONResponse(data)
+    return JSONResponse(data, status_code=201)
 
 
 @app.get("/api/v1/devices/{device_id}", tags=["API v1"], summary="Detalhe de um device")
@@ -2244,7 +2246,7 @@ def api_runs_list(
     page_size: int = 50,
     _doc=Depends(_api_doc),
 ):
-    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     page = max(1, page)
     page_size = max(1, min(page_size, 500))
     db = SessionLocal()
@@ -2271,7 +2273,7 @@ def api_runs_list(
 
 @app.get("/api/v1/runs/{run_id}", tags=["API v1"], summary="Detalhe da execucao (com output/diff)")
 def api_run_detail(request: Request, run_id: int, _doc=Depends(_api_doc)):
-    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     db = SessionLocal()
     try:
         run = db.scalar(
@@ -2414,7 +2416,7 @@ def api_run_create(body: ApiRunIn, request: Request, _doc=Depends(_api_doc)):
         )
     if run_status == "approved":
         start_run_async(run_id)
-    return JSONResponse(data)
+    return JSONResponse(data, status_code=201)
 
 
 @app.post("/api/v1/runs/{run_id}/approve", tags=["API v1"], summary="Aprova e dispara a execucao")
@@ -2504,7 +2506,7 @@ def api_run_cancel(request: Request, run_id: int, _doc=Depends(_api_doc)):
 # --- compliance via API -----------------------------------------------------
 @app.get("/api/v1/policies", tags=["API v1"], summary="Lista politicas de conformidade")
 def api_policies(request: Request, _doc=Depends(_api_doc)):
-    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     db = SessionLocal()
     try:
         rows = list(db.scalars(select(Policy).order_by(Policy.name)).all())
@@ -2553,7 +2555,7 @@ def api_policy_run(request: Request, policy_id: int, _doc=Depends(_api_doc)):
         run_id = start_policy_async(policy_id, author=user["name"])
     except ValueError as e:
         return _api_error(400, str(e))
-    return JSONResponse({"compliance_run_id": run_id, "status": "running"})
+    return JSONResponse({"compliance_run_id": run_id, "status": "running"}, status_code=202)
 
 
 @app.get("/api/v1/compliance/runs", tags=["API v1"], summary="Lista execucoes de conformidade")
@@ -2563,7 +2565,7 @@ def api_compliance_runs(
     page_size: int = 50,
     _doc=Depends(_api_doc),
 ):
-    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     page = max(1, page)
     page_size = max(1, min(page_size, 500))
     db = SessionLocal()
@@ -2601,7 +2603,7 @@ def api_compliance_runs(
     summary="Resultado da conformidade por device",
 )
 def api_compliance_run_detail(request: Request, compliance_run_id: int, _doc=Depends(_api_doc)):
-    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     db = SessionLocal()
     try:
         run = db.get(ComplianceRun, compliance_run_id)

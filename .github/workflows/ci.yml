@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    paths:
+      - "config_push/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "config_push/**"
+
+jobs:
+  test:
+    name: Testes (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: config_push
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: config_push/requirements-dev.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check app tests
+
+      - name: Testes (pytest)
+        run: pytest -q
