@@ -130,6 +130,36 @@ class RConfigConnector:
         except Exception:  # noqa: BLE001
             return {}
 
+    # -- correlacao com o inventario do app ----------------------------------
+    def index(self) -> dict[str, dict]:
+        """Indexa os devices do rConfig para correlacao **por IP** (fallback nome).
+
+        O ``external_id`` do app guarda o id da fonte de inventario (LibreNMS),
+        que **nao** e' o id do rConfig. Por isso a correlacao e' feita pelo IP.
+
+        Devolve ``{"by_ip": {ip: {id, last_config_id}},
+        "by_name": {nome_lower: {id, last_config_id}}}``.
+        """
+        idx: dict[str, dict] = {"by_ip": {}, "by_name": {}}
+        if not self.available():
+            return idx
+        try:
+            rows = self.list_devices()
+        except Exception:  # noqa: BLE001
+            return idx
+        for d in rows:
+            entry = {
+                "id": str(d.get("external_id") or ""),
+                "last_config_id": str(d.get("last_config_id") or ""),
+            }
+            ip = (d.get("ip") or "").strip()
+            name = (d.get("name") or "").strip().lower()
+            if ip:
+                idx["by_ip"][ip] = entry
+            if name:
+                idx["by_name"][name] = entry
+        return idx
+
     # -- disparar backup (quem executa e' o rConfig) -------------------------
     def trigger_backup(self, external_id: str) -> bool:
         """Dispara o backup de um device (GET /api/v1/download-now/{id})."""

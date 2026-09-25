@@ -2645,14 +2645,9 @@ def api_backups(request: Request, _doc=Depends(_api_doc)):
         devices = list(db.scalars(select(Device).order_by(Device.name)).all())
         conn = _rconfig_connector(db)
         rconfig_ok = conn.available()
-        status_map: dict[str, dict] = {}
+        index = _rconfig_index(conn)
         summary: dict = {}
         if rconfig_ok:
-            try:
-                for d in conn.list_devices():
-                    status_map[str(d.get("external_id") or "")] = d
-            except Exception:  # noqa: BLE001
-                status_map = {}
             try:
                 summary = conn.summary()
             except Exception:  # noqa: BLE001
@@ -2662,11 +2657,11 @@ def api_backups(request: Request, _doc=Depends(_api_doc)):
         for d in devices:
             if not can_target(user["role"], d.site_role):
                 continue
-            ext = (d.external_id or "").strip()
-            info = status_map.get(ext) if ext else None
-            last_id = str(info.get("last_config_id") or "") if info else (d.last_config_id or "")
+            info = _rconfig_for(index, d)
+            rc_id = str(info.get("id") or "")
+            last_id = str(info.get("last_config_id") or "") or (d.last_config_id or "")
             last_at = d.last_config_at
-            if not ext and not last_id:
+            if not rc_id and not last_id:
                 status = "unlinked"
             elif not last_id:
                 status = "never"
@@ -2680,7 +2675,7 @@ def api_backups(request: Request, _doc=Depends(_api_doc)):
                     "device": d.name,
                     "ip": d.ip,
                     "site": d.site,
-                    "external_id": ext,
+                    "rconfig_id": rc_id or None,
                     "status": status,
                     "source": "rconfig",
                     "last_config_id": last_id or None,
@@ -2720,10 +2715,10 @@ def api_backup_device(
             return _api_error(404, "device nao encontrado")
         if not can_target(user["role"], d.site_role):
             return _api_error(403, "device fora do escopo do token")
-        ext = (d.external_id or "").strip()
-        name = d.name
         conn = _rconfig_connector(db)
         rconfig_ok = conn.available()
+        ext = str(_rconfig_for(_rconfig_index(conn), d).get("id") or "")
+        name = d.name
         versions: list[dict] = []
         latest: dict = {}
         if rconfig_ok and ext:
@@ -2752,7 +2747,7 @@ def api_backup_device(
             "device": name,
             "source": "rconfig",
             "rconfig_available": rconfig_ok,
-            "external_id": ext or None,
+            "rconfig_id": ext or None,
             "config_id": str(cid) or None,
             "versions": versions,
             "last_diff": (diff or "")[-20000:],
@@ -2778,9 +2773,9 @@ def api_backup_trigger(request: Request, device_id: int, _doc=Depends(_api_doc))
         conn = _rconfig_connector(db)
         if not conn.available():
             return _api_error(503, "rConfig nao configurado")
-        ext = (d.external_id or "").strip()
+        ext = str(_rconfig_for(_rconfig_index(conn), d).get("id") or "")
         if not ext:
-            return _api_error(400, "device nao vinculado ao rConfig (sem external_id)")
+            return _api_error(400, "device nao vinculado ao rConfig (IP nao encontrado)")
         ok = conn.trigger_backup(ext)
         audit(db, user["name"], "api_rconfig_backup", f"{d.name} (id rconfig {ext})")
         db.commit()
@@ -3073,19 +3068,26 @@ def _rconfig_connector(db):
     return RConfigConnector(**cfg)
 
 
-def _rconfig_status_map(conn) -> dict[str, dict]:
-    """Mapeia external_id (device do rConfig) -> ultima config conhecida."""
+def _rconfig_index(conn) -> dict:
+    """Indice dos devices do rConfig para correlacao (IP; fallback nome)."""
     if not conn.available():
-        return {}
-    out: dict[str, dict] = {}
+        return {"by_ip": {}, "by_name": {}}
     try:
-        for d in conn.list_devices():
-            ext = str(d.get("external_id") or "")
-            if ext:
-                out[ext] = {"last_config_id": d.get("last_config_id") or ""}
+        return conn.index()
     except Exception:  # noqa: BLE001
-        return {}
-    return out
+        return {"by_ip": {}, "by_name": {}}
+
+
+def _rconfig_for(index: dict, device) -> dict:
+    """Device do rConfig correspondente ao device do app.
+
+    Correlaciona pelo **IP** (fallback: nome, case-insensitive). NAO usa
+    ``Device.external_id`` — esse guarda o id do inventario (LibreNMS), nao o
+    id do rConfig (bug antigo: core com external_id=2 caia no AGG do rConfig).
+    """
+    ip = (getattr(device, "ip", "") or "").strip()
+    name = (getattr(device, "name", "") or "").strip().lower()
+    return index.get("by_ip", {}).get(ip) or index.get("by_name", {}).get(name) or {}
 
 
 @app.get("/backups", response_class=HTMLResponse)
@@ -3097,29 +3099,25 @@ def backups_list(request: Request):
         devices = db.scalars(select(Device).order_by(Device.name)).all()
         conn = _rconfig_connector(db)
         summary = conn.summary()
-        # atualiza last_config_id/last_config_at a partir do rConfig
-        linked = conn.available()
-        status_map: dict[str, dict] = {}
-        if linked:
-            try:
-                for d in conn.list_devices():
-                    status_map[str(d.get("external_id") or "")] = d
-            except Exception:  # noqa: BLE001
-                status_map = {}
+        rconfig_ok = conn.available()
+        index = _rconfig_index(conn)
         now = utcnow()
         counts = {"ok": 0, "failed": 0, "stale": 0, "never": 0, "unlinked": 0}
+        # 1o passo: sincroniza last_config_id/last_config_at (correlacao por IP)
         for d in devices:
-            ext = (d.external_id or "").strip()
-            info = status_map.get(ext) if ext else None
-            last_id = ""
-            if info:
-                last_id = str(info.get("last_config_id") or "")
-                if last_id and last_id != (d.last_config_id or ""):
-                    d.last_config_id = last_id
-                    d.last_config_at = now
-            last_id = last_id or (d.last_config_id or "")
+            info = _rconfig_for(index, d)
+            last_id = str(info.get("last_config_id") or "")
+            if last_id and last_id != (d.last_config_id or ""):
+                d.last_config_id = last_id
+                d.last_config_at = now
+        db.commit()
+        # 2o passo: monta os itens como dicts (evita DetachedInstanceError apos close)
+        items = []
+        for d in devices:
+            rc_id = str(_rconfig_for(index, d).get("id") or "")
+            last_id = (d.last_config_id or "") or ""
             last_at = d.last_config_at
-            if not ext and not last_id:
+            if not rc_id and not last_id:
                 state = "unlinked"
             elif not last_id:
                 state = "never"
@@ -3128,33 +3126,17 @@ def backups_list(request: Request):
             else:
                 state = "ok"
             counts[state] += 1
-        db.commit()
-        # monta os itens como dicts (evita DetachedInstanceError apos close)
-        items = []
-        for d in devices:
-            ext = (d.external_id or "").strip()
-            last_id = (d.last_config_id or "") or ""
-            last_at = d.last_config_at
-            if not ext and not last_id:
-                state = "unlinked"
-            elif not last_id:
-                state = "never"
-            elif last_at and (now - last_at) > timedelta(hours=BACKUP_STALE_HOURS):
-                state = "stale"
-            else:
-                state = "ok"
             items.append(
                 {
                     "id": d.id,
                     "name": d.name,
                     "ip": d.ip,
-                    "external_id": ext,
+                    "rconfig_id": rc_id,
                     "last_config_id": last_id,
                     "last_at_text": last_at.strftime("%d/%m/%Y %H:%M") if last_at else "",
                     "state": state,
                 }
             )
-        rconfig_ok = conn.available()
     finally:
         db.close()
     return render(
@@ -3178,11 +3160,12 @@ def backups_collect_all(request: Request):
         conn = _rconfig_connector(db)
         if not conn.available():
             raise HTTPException(400, translate(lang, "bk.not_configured"))
-        ids = [
-            (d.external_id or "").strip()
-            for d in db.scalars(select(Device).where(Device.external_id != "")).all()
-            if (d.external_id or "").strip()
-        ]
+        index = _rconfig_index(conn)
+        ids = []
+        for d in db.scalars(select(Device)).all():
+            rc_id = str(_rconfig_for(index, d).get("id") or "")
+            if rc_id:
+                ids.append(rc_id)
         ok = conn.trigger_backup_many(ids) if ids else False
         audit(db, user["name"], "rconfig_backup_all", f"{len(ids)} device(s)")
         db.commit()
@@ -3205,7 +3188,7 @@ def backups_collect(request: Request, device_id: int):
         conn = _rconfig_connector(db)
         if not conn.available():
             raise HTTPException(400, translate(lang, "bk.not_configured"))
-        ext = (device.external_id or "").strip()
+        ext = str(_rconfig_for(_rconfig_index(conn), device).get("id") or "")
         if not ext:
             raise HTTPException(400, translate(lang, "bk.not_linked"))
         ok = conn.trigger_backup(ext)
@@ -3227,7 +3210,8 @@ def backup_detail(request: Request, device_id: int, version: str = ""):
         if not device:
             raise HTTPException(404, "device nao encontrado")
         conn = _rconfig_connector(db)
-        ext = (device.external_id or "").strip()
+        rconfig_ok = conn.available()
+        ext = str(_rconfig_for(_rconfig_index(conn), device).get("id") or "")
         dev_view = {
             "id": device.id,
             "name": device.name,
@@ -3239,7 +3223,7 @@ def backup_detail(request: Request, device_id: int, version: str = ""):
         versions: list[dict] = []
         latest = {}
         diff = ""
-        if conn.available() and ext:
+        if rconfig_ok and ext:
             try:
                 versions = conn.versions(ext)
             except Exception:  # noqa: BLE001
@@ -3260,7 +3244,6 @@ def backup_detail(request: Request, device_id: int, version: str = ""):
                     device.last_config_id = str(cid)
                     device.last_config_at = utcnow()
                     db.commit()
-        rconfig_ok = conn.available()
     finally:
         db.close()
     return render(

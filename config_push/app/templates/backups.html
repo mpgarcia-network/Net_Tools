@@ -48,7 +48,7 @@
       <td>{{ it.last_at_text or '-' }}</td>
       <td class="nowrap">
         <a href="/backups/{{ it.id }}">{{ t('c.view') }}</a>
-        {% if user.role in ['admin','operator_advanced'] and rconfig_ok and it.external_id %}
+        {% if user.role in ['admin','operator_advanced'] and rconfig_ok and it.rconfig_id %}
         <form method="post" action="/backups/collect/{{ it.id }}" style="display:inline">
           <button class="link" type="submit">{{ t('bk.backup_now') }}</button>
         </form>

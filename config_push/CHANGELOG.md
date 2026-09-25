@@ -9,6 +9,9 @@
   (`/api/v1/download-now/{id}`); diff por `/api/v2/config-changes/by-config/{id}`.
 - O app **não coleta** config: **exibe e dispara** no rConfig (quem executa é o rConfig);
   `last_config_id`/`last_config_at` sincronizados a partir do rConfig.
+- **Correlação por IP**: o `external_id` guarda o id do inventário (LibreNMS), não o do
+  rConfig — a correlação com o rConfig é pelo **IP** (fallback nome). Corrige o core
+  (`external_id=2`) exibindo as versões do AGG.
 - **Telas**: `Backups` (status por device + resumo do rConfig) e detalhe do device
   (versões + diff HTML), com **Backup agora** / **Backup de todos**.
 - **API v1** de backups: `GET /api/v1/backups`, `GET /api/v1/backups/{id}`,
