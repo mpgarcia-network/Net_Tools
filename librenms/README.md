@@ -39,6 +39,15 @@ para criar o usuário admin.
 - `librenms.env`: opções do app (cache/sessão em Redis, etc.).
 - `msmtpd.env`: SMTP para alertas por e-mail.
 
+## Descoberta de ativos
+
+Os scripts de communities/redes/scan/topologia ficam em [`../scripts/`](../scripts/):
+
+```bash
+../scripts/setup-ativos.sh          # assistente (communities, redes, scan, topologia)
+../scripts/lnms-scan.sh             # scan diário (agendar no cron)
+```
+
 ## Integração com o Config Push
 
 O Config Push consome o inventário via API (conector opcional):

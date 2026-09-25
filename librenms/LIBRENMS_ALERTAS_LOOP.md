@@ -4,7 +4,7 @@
 > ele já coleta. Não é um detector de loop "puro" (isso é a Fase 3), mas pega a
 > maioria dos casos (broadcast storm / saturação) sem sensor extra.
 >
-> Ambiente: `100.120.0.41` (vmssuproxy), LibreNMS `:8001`, token em Settings → API.
+> Ambiente: LibreNMS em `http://<host>:${APP_PORT:-8001}`, token em Settings → API.
 
 ---
 
@@ -146,8 +146,8 @@ def alert(switch_ip, mac, ports):
 
 ### Onde hospedar
 
-- **Não** no Config Push. Sugestão: um **container/stack próprio** (ex.:
-  `ssu-loopwatch`) ou um script no `setup-ativos`/host, rodando por systemd/cron.
+- **Não** no Config Push. Sugestão: um **container/stack próprio** ou um script
+  no host, rodando por systemd/cron.
 - Comunidade SNMP: as mesmas do LibreNMS (`monitoramentoti`, `unimedsc`, `public`).
 
 ### Alertas no LibreNMS a partir do script

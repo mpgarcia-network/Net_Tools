@@ -1,0 +1,2 @@
+# O produto e' deployado em Linux: scripts de shell sempre com LF.
+*.sh text eol=lf

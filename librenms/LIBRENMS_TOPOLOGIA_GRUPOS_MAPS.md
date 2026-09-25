@@ -5,7 +5,7 @@
 > (por **Site** e por **Camada**) e então **salvar mapas fixos** (Custom Maps)
 > por grupo.
 >
-> Ambiente de referência: `100.120.0.41` (vmssuproxy), LibreNMS em `:8001`.
+> Ambiente de referência: LibreNMS em `http://<host>:${APP_PORT:-8001}`.
 > Token de API em **Settings → API**.
 
 ---
@@ -99,7 +99,7 @@ A API **não** cria Custom Maps — é pela UI:
 Se um switch novo não aparecer nas conexões:
 
 ```bash
-CONTAINER=$(docker ps -q -f name=ssu-librenms_librenms | head -1)
+CONTAINER=$(docker ps -q -f name='^librenms$' | head -1)
 docker exec -it -u librenms "$CONTAINER" lnms device:discoverall
 ```
 

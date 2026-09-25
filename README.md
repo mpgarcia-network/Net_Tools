@@ -7,7 +7,8 @@ cada uma em sua pasta, com deploy Docker Swarm padronizado.
 |---|---|---|
 | **Config Push** | [`config_push/`](config_push/) | Gestão de configuração (push, dry-run/diff, aprovação, agendamento, auditoria, RBAC, backup/versionamento próprio) |
 | **rConfig** | [`rconfig/`](rconfig/) | Coleta e versionamento de configuração (deploy Swarm + patch "keep unchanged" + retenção) |
-| **LibreNMS** | [`librenms/`](librenms/) | Projeto oficial (GPLv3) — usado via API (conector), sem stack próprio |
+| **LibreNMS** | [`librenms/`](librenms/) | Monitoramento/descoberta — deploy `docker compose` do projeto oficial (GPLv3), usado via API (conector) |
+| **Scripts** | [`scripts/`](scripts/) | Descoberta no LibreNMS: communities SNMP, redes, scan agendado (`lnms-scan.sh`) e topologia (`setup-ativos.sh`) |
 
 Cada pasta é **autônoma** (tem seu `docker-compose.yml`, `manager-docker.sh`,
 `.env.example` e `README.md`). Sobe-se só o que o cliente precisa.
