@@ -57,6 +57,30 @@ def decrypt_secret(token: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tokens de API (Bearer) — guardamos apenas o hash (sha256 do token puro)
+# ---------------------------------------------------------------------------
+API_TOKEN_PREFIX = "ssu_"
+
+
+def generate_api_token() -> tuple[str, str, str]:
+    """Gera um token novo.
+
+    Retorna (token_puro, token_hash, prefixo). O token puro so deve ser
+    exibido uma vez; o banco guarda apenas o hash.
+    """
+    raw = API_TOKEN_PREFIX + os.urandom(24).hex()
+    return raw, hash_api_token(raw), raw[:12]
+
+
+def hash_api_token(raw: str) -> str:
+    return hashlib.sha256((raw or "").encode()).hexdigest()
+
+
+def verify_api_token(raw: str, stored_hash: str) -> bool:
+    return hmac.compare_digest(hash_api_token(raw), stored_hash or "")
+
+
+# ---------------------------------------------------------------------------
 # Mapeamento vendor/protocolo -> device_type do Netmiko
 # ---------------------------------------------------------------------------
 VENDOR_MAP = {

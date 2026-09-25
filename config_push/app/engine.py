@@ -222,14 +222,25 @@ def _auto_pre_commands(device: dict) -> str:
     return ""
 
 
-_CMDLINE_ERR = ("incorrect", "invalid", "error", "unrecognized", "failed", "wrong")
+# NB: nao usar "wrong" (a msg de SUCESSO contem "by wrong use"); idem termos
+# genericos que aparecem no aviso de sucesso.
+_CMDLINE_ERR = ("invalid password", "incorrect password", "unrecognized", "permission denied")
+# Marcador POSITIVO de que a SENHA foi aceita (HP/H3C antigo): apos digitar a
+# senha aparece o aviso de "all-command mode". (A frase "All commands can be
+# displayed..." aparece ANTES da senha, entao nao serve para validar a senha.)
+_CMDLINE_PW_OK = (
+    "enter an all-command mode",
+    "all-command mode",
+    "******",
+)
 
 
 def discover_maintenance_password(device: dict, candidates: list[str]) -> dict:
     """Descobre qual senha de _cmdline-mode funciona no device.
 
-    Tenta cada candidata: conecta, manda '_cmdline-mode on', 'Y' e a senha.
-    Devolve {status, password, output}. 'password' vazio se nenhuma funcionou.
+    Fluxo (HP/H3C antigo): '_cmdline-mode on' -> 'Y' -> senha.
+    A senha correta faz aparecer o aviso "...enter an all-command mode...".
+    Confirma com 'system-view' (prompt vira '[...]'). Devolve {status, password, output}.
     """
     conn, device_type, _detected, enable_pw = build_conn(device)
     candidates = [c.strip() for c in candidates if c and c.strip()]
@@ -237,21 +248,29 @@ def discover_maintenance_password(device: dict, candidates: list[str]) -> dict:
         return {"status": "failed", "password": "", "output": "sem candidatas"}
     _GLOBAL_SEM.acquire()
     try:
+        last = ""
         for pw in candidates:
             try:
                 with ConnectHandler(**conn) as ssh:
-                    out = ssh.send_command_timing("_cmdline-mode on", read_timeout=settings.conn_timeout * 2)
-                    out += ssh.send_command_timing("Y", read_timeout=settings.conn_timeout * 2)
-                    out += ssh.send_command_timing(pw, read_timeout=settings.conn_timeout * 2)
+                    ssh.send_command_timing("_cmdline-mode on", read_timeout=settings.conn_timeout * 2)
+                    ssh.send_command_timing("Y", read_timeout=settings.conn_timeout * 2)
+                    out = ssh.send_command_timing(pw, read_timeout=settings.conn_timeout * 2)
+                    last = out
                     low = out.lower()
-                    if not any(e in low for e in _CMDLINE_ERR):
-                        # testa se o sistema realmente aceitou: tenta iniciar system-view
-                        probe = ssh.send_command_timing("system-view", read_timeout=settings.conn_timeout * 2)
-                        if "[" in probe or "system" in probe.lower():
-                            return {"status": "success", "password": pw, "output": out + "\n" + probe}
+                    ok = any(k in low for k in _CMDLINE_PW_OK)
+                    # o marcador positivo ("enter an all-command mode") so' aparece
+                    # com a SENHA CERTA — basta isso para confirmar (o system-view
+                    # seguinte pode falhar por pager/timing sem invalidar a senha).
+                    if ok and not any(e in low for e in _CMDLINE_ERR):
+                        return {
+                            "status": "success",
+                            "password": pw,
+                            "output": f"senha aceita: {pw}\n{out}",
+                        }
             except Exception as e:  # noqa: BLE001
+                last = f"excecao: {e}"
                 log.info("descobrir senha: tentativa falhou (%s)", e)
-        return {"status": "failed", "password": "", "output": "nenhuma senha funcionou"}
+        return {"status": "failed", "password": "", "output": last or "nenhuma senha funcionou"}
     finally:
         _GLOBAL_SEM.release()
 

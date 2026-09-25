@@ -44,6 +44,7 @@ from .db import Base, SessionLocal, engine, ensure_schema, utcnow
 from .i18n import LANGS, t as translate, translator
 from .importer import parse_devices
 from .models import (
+    ApiToken,
     AuditLog,
     Backup,
     ComplianceResult,
@@ -61,6 +62,8 @@ from .compliance import select_devices, start_policy_async
 from .security import (
     MIN_PASSWORD_LEN,
     encrypt_secret,
+    generate_api_token,
+    hash_api_token,
     hash_password,
     verify_password,
 )
@@ -143,6 +146,10 @@ async def security_middleware(request: Request, call_next):
         if origin and host:
             netloc = urlsplit(origin).netloc
             if netloc and netloc != host:
+                if request.url.path.startswith("/api/"):
+                    return JSONResponse(
+                        status_code=403, content={"error": "origem nao permitida"}
+                    )
                 return HTMLResponse(
                     "<h3>403</h3><p>Origem da requisicao nao permitida.</p>",
                     status_code=403,
@@ -339,6 +346,47 @@ def require_role(request: Request, roles: set[str]):
     return user
 
 
+# ---------------------------------------------------------------------------
+# API v1: autenticacao por Bearer token
+# ---------------------------------------------------------------------------
+def _api_error(status: int, message: str):
+    return JSONResponse(status_code=status, content={"error": message})
+
+
+def require_api(request: Request, roles: set[str] | None = None):
+    """Valida `Authorization: Bearer <token>` contra a tabela api_tokens.
+
+    Retorna um dict no formato de `current_user` ({name, role, site_scope}),
+    para reaproveitar `can_target`/`require_role` nas rotas da API.
+    Levanta HTTPException 401/403 (que aqui devolvemos como JSON).
+    """
+    auth = request.headers.get("authorization", "") or ""
+    if not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="token ausente")
+    raw = auth.split(" ", 1)[1].strip()
+    if not raw:
+        raise HTTPException(status_code=401, detail="token ausente")
+    token_hash = hash_api_token(raw)
+    db = SessionLocal()
+    try:
+        tok = db.scalar(select(ApiToken).where(ApiToken.token_hash == token_hash))
+        if not tok or not tok.active:
+            raise HTTPException(status_code=401, detail="token invalido")
+        if roles is not None and tok.role not in roles:
+            raise HTTPException(status_code=403, detail="sem permissao")
+        # dono precisa continuar ativo
+        owner = db.scalar(select(User).where(User.username == tok.owner))
+        if not owner or not owner.active:
+            raise HTTPException(status_code=401, detail="dono do token inativo")
+        tok.last_used_at = utcnow()
+        db.commit()
+        return {"name": tok.owner, "role": tok.role, "token_id": tok.id,
+                "site_scope": tok.site_scope or "", "api": True}
+    finally:
+        db.close()
+
+
+
 def render(request: Request, name: str, **ctx) -> HTMLResponse:
     db = SessionLocal()
     try:
@@ -375,6 +423,9 @@ def _lang(request: Request) -> str:
 async def http_exc_handler(request: Request, exc: HTTPException):
     if exc.status_code == 307 and "Location" in (exc.headers or {}):
         return RedirectResponse(exc.headers["Location"], status_code=303)
+    # rotas /api/* respondem JSON (integracoes esperam JSON, nao HTML)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.detail})
     return HTMLResponse(
         f"<h3>Erro {exc.status_code}</h3><p>{exc.detail}</p>", status_code=exc.status_code
     )
@@ -465,8 +516,69 @@ def logout(request: Request):
 
 @app.get("/account", response_class=HTMLResponse)
 def account(request: Request):
-    require_login(request)
-    return render(request, "account.html", error=None, ok=None)
+    user = require_login(request)
+    return _render_account(request, user)
+
+
+def _render_account(request: Request, user, error=None, ok=None, new_token=None):
+    db = SessionLocal()
+    try:
+        tokens = list(
+            db.scalars(
+                select(ApiToken)
+                .where(ApiToken.owner == user["name"])
+                .order_by(ApiToken.id.desc())
+            ).all()
+        )
+    finally:
+        db.close()
+    return render(
+        request, "account.html",
+        error=error, ok=ok, new_token=new_token, tokens=tokens,
+    )
+
+
+@app.post("/account/tokens/new")
+def account_token_new(request: Request, name: str = Form("")):
+    user = require_login(request)
+    lang = user.get("language") or "pt"
+    raw, token_hash, prefix = generate_api_token()
+    db = SessionLocal()
+    try:
+        db.add(
+            ApiToken(
+                name=(name.strip() or "token"),
+                prefix=prefix,
+                token_hash=token_hash,
+                owner=user["name"],
+                role=user["role"],
+                site_scope="",
+                created_by=user["name"],
+            )
+        )
+        audit(db, user["name"], "api_token_create", f"prefix={prefix}")
+        db.commit()
+    finally:
+        db.close()
+    return _render_account(
+        request, user, ok=translate(lang, "msg.token_created"), new_token=raw
+    )
+
+
+@app.post("/account/tokens/{token_id}/delete")
+def account_token_delete(request: Request, token_id: int):
+    user = require_login(request)
+    db = SessionLocal()
+    try:
+        tok = db.get(ApiToken, token_id)
+        if not tok or (tok.owner != user["name"] and user["role"] != "admin"):
+            raise HTTPException(403, "sem permissao")
+        db.delete(tok)
+        audit(db, user["name"], "api_token_delete", f"prefix={tok.prefix}")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/account", status_code=303)
 
 
 @app.post("/account/password")
@@ -479,30 +591,27 @@ def account_password(
     user = require_login(request)
     lang = user.get("language") or "pt"
     if new1 != new2:
-        return render(
-            request, "account.html", error=translate(lang, "msg.password_mismatch"), ok=None
+        return _render_account(
+            request, user, error=translate(lang, "msg.password_mismatch")
         )
     if len(new1) < MIN_PASSWORD_LEN:
-        return render(
-            request,
-            "account.html",
-            error=translate(lang, "msg.password_short", n=MIN_PASSWORD_LEN),
-            ok=None,
+        return _render_account(
+            request, user, error=translate(lang, "msg.password_short", n=MIN_PASSWORD_LEN)
         )
     db = SessionLocal()
     try:
         u = db.scalar(select(User).where(User.username == user["name"]))
         if not u or not verify_password(current, u.password_hash):
-            return render(
-                request, "account.html", error=translate(lang, "msg.password_current"), ok=None
+            return _render_account(
+                request, user, error=translate(lang, "msg.password_current")
             )
         u.password_hash = hash_password(new1)
         audit(db, user["name"], "password_change", "self")
         db.commit()
     finally:
         db.close()
-    return render(
-        request, "account.html", error=None, ok=translate(lang, "msg.password_changed")
+    return _render_account(
+        request, user, ok=translate(lang, "msg.password_changed")
     )
 
 
@@ -1742,6 +1851,346 @@ def run_status_api(request: Request, run_id: int):
     finally:
         db.close()
     return JSONResponse(data)
+
+
+# ---------------------------------------------------------------------------
+# API v1 (autenticacao por Bearer token — ver require_api)
+# ---------------------------------------------------------------------------
+def _serialize_run(run: Run, detail: bool = False) -> dict:
+    data = {
+        "id": run.id,
+        "snippet_name": run.snippet_name,
+        "status": run.status,
+        "dry_run": run.dry_run,
+        "capture_diff": run.capture_diff,
+        "require_approval": run.require_approval,
+        "requested_by": run.requested_by,
+        "approved_by": run.approved_by,
+        "approved_at": run.approved_at.isoformat() if run.approved_at else None,
+        "reject_reason": run.reject_reason,
+        "created_at": run.created_at.isoformat() if run.created_at else None,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "counts": _run_counts(run.targets),
+    }
+    if detail:
+        data["targets"] = [
+            {
+                "id": t.id,
+                "name": t.device_name,
+                "ip": t.device_ip,
+                "status": t.status,
+                "error": t.error,
+                "output": (t.output or "")[-4000:],
+                "diff": (t.diff or "")[-4000:],
+            }
+            for t in run.targets
+        ]
+    return data
+
+
+@app.get("/api/v1/me")
+def api_me(request: Request):
+    """Valida o token e devolve o papel/escopo efetivo."""
+    user = require_api(request)
+    return JSONResponse(
+        {
+            "user": user["name"],
+            "role": user["role"],
+            "site_scope": user["site_scope"],
+            "roles_available": sorted(RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES | ADMIN_ROLES),
+        }
+    )
+
+
+@app.get("/api/v1/devices")
+def api_devices(request: Request, site: str = "", site_role: str = ""):
+    user = require_api(request)
+    db = SessionLocal()
+    try:
+        stmt = select(Device).order_by(Device.name)
+        if site:
+            stmt = stmt.where(Device.site == site)
+        if site_role:
+            stmt = stmt.where(Device.site_role == site_role)
+        rows = list(db.scalars(stmt).all())
+        data = [
+            {
+                "id": d.id,
+                "name": d.name,
+                "ip": d.ip,
+                "vendor": d.vendor,
+                "model": d.model,
+                "device_type": d.device_type,
+                "site": d.site,
+                "site_role": d.site_role,
+                "enabled": d.enabled,
+                "source": d.source,
+            }
+            for d in rows
+            if can_target(user["role"], d.site_role)
+        ]
+    finally:
+        db.close()
+    return JSONResponse({"count": len(data), "devices": data})
+
+
+@app.get("/api/v1/runs")
+def api_runs_list(request: Request, status: str = "", limit: int = 50):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    limit = max(1, min(limit, 500))
+    db = SessionLocal()
+    try:
+        stmt = (
+            select(Run)
+            .options(selectinload(Run.targets))
+            .order_by(Run.id.desc())
+            .limit(limit)
+        )
+        if status:
+            stmt = stmt.where(Run.status == status)
+        runs = list(db.scalars(stmt).all())
+    finally:
+        db.close()
+    return JSONResponse({"count": len(runs), "runs": [_serialize_run(r) for r in runs]})
+
+
+@app.get("/api/v1/runs/{run_id}")
+def api_run_detail(request: Request, run_id: int):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
+    db = SessionLocal()
+    try:
+        run = db.scalar(
+            select(Run).options(selectinload(Run.targets)).where(Run.id == run_id)
+        )
+        if not run:
+            return _api_error(404, "run nao encontrado")
+        data = _serialize_run(run, detail=True)
+    finally:
+        db.close()
+    return JSONResponse(data)
+
+
+@app.post("/api/v1/runs")
+async def api_run_create(request: Request):
+    """Cria uma execucao.
+
+    Body JSON:
+      {
+        "device_ids": [1,2],          # obrigatorio (ou "devices" por IP/nome)
+        "commands": "vlan 100\\n name X",  # obrigatorio (comandos avulsos)
+        "snippet_ids": [3],           # opcional (alternativa a commands)
+        "dry_run": false,
+        "capture_diff": true
+      }
+    """
+    user = require_api(request, RUN_ROLES)
+    try:
+        body = await request.json()
+    except Exception:
+        return _api_error(400, "JSON invalido")
+    if not isinstance(body, dict):
+        return _api_error(400, "JSON invalido")
+
+    commands = str(body.get("commands") or "")
+    snippet_ids = [int(x) for x in (body.get("snippet_ids") or [])]
+    device_ids = [int(x) for x in (body.get("device_ids") or [])]
+    dry_run = bool(body.get("dry_run"))
+    capture_diff = bool(body.get("capture_diff"))
+
+    db = SessionLocal()
+    try:
+        if not device_ids:
+            return _api_error(400, "device_ids obrigatorio")
+        devices = list(db.scalars(select(Device).where(Device.id.in_(device_ids))).all())
+        if len(devices) != len(set(device_ids)):
+            return _api_error(400, "um ou mais device_ids nao existem")
+        blocked = [d for d in devices if not can_target(user["role"], d.site_role)]
+        if blocked:
+            return _api_error(403, f"{len(blocked)} device(s) fora do escopo do token")
+        snippets = (
+            list(
+                db.scalars(
+                    select(Snippet).where(Snippet.id.in_(snippet_ids)).order_by(Snippet.name)
+                ).all()
+            )
+            if snippet_ids
+            else []
+        )
+
+        per_device: dict[int, tuple[str, str]] = {}
+        unmatched: list[Device] = []
+        if snippets:
+            by_driver: dict[str, Snippet] = {}
+            generic: list[Snippet] = []
+            for s in snippets:
+                dlist = [x.strip() for x in (s.drivers or "").split(",") if x.strip()]
+                if dlist:
+                    for d in dlist:
+                        by_driver[d] = s
+                else:
+                    generic.append(s)
+            for dev in devices:
+                drv = (dev.device_type or "").strip()
+                s = by_driver.get(drv) or (generic[0] if generic else None)
+                if s is not None:
+                    per_device[dev.id] = (s.name, s.body)
+                else:
+                    unmatched.append(dev)
+            if not per_device:
+                return _api_error(400, "nenhum device casou com o driver do snippet")
+            if len(snippets) == 1:
+                run_snippet_name = snippets[0].name
+                run_commands = snippets[0].body
+            else:
+                run_snippet_name = "(auto por driver)"
+                run_commands = "(comandos por device)"
+            matched = [d for d in devices if d.id in per_device]
+        else:
+            if not commands.strip():
+                return _api_error(400, "commands ou snippet_ids obrigatorio")
+            matched = devices
+            run_snippet_name = "(comandos avulsos)"
+            run_commands = commands
+
+        run = create_run(
+            db,
+            snippet_id=snippets[0].id if len(snippets) == 1 else None,
+            snippet_name=run_snippet_name,
+            commands=run_commands,
+            devices=matched,
+            dry_run=dry_run,
+            require_approval=settings.require_approval,
+            requested_by=user["name"],
+            per_device=per_device or None,
+            auto_approve=(user["role"] == "admin"),
+            capture_diff=capture_diff,
+        )
+        for dev in unmatched:
+            db.add(
+                RunTarget(
+                    run_id=run.id,
+                    device_id=dev.id,
+                    device_name=dev.name,
+                    device_ip=dev.ip,
+                    snippet_name="(sem modelo)",
+                    status="skipped",
+                    error=f"sem modelo para o driver '{dev.device_type or '?'}'",
+                )
+            )
+        audit(db, user["name"], "api_run_create", f"run={run.id} status={run.status}")
+        db.commit()
+        run_id = run.id
+        run_status = run.status
+        run_snippet = run.snippet_name
+        data = _serialize_run(run)
+    finally:
+        db.close()
+    if run_status == "pending_approval":
+        notify(
+            {
+                "event": "run_pending_approval",
+                "run_id": run_id,
+                "snippet": run_snippet,
+                "requested_by": user["name"],
+            }
+        )
+    else:
+        notify(
+            {
+                "event": "run_created",
+                "run_id": run_id,
+                "status": run_status,
+                "snippet": run_snippet,
+                "requested_by": user["name"],
+            }
+        )
+    if run_status == "approved":
+        start_run_async(run_id)
+    return JSONResponse(data, status_code=201)
+
+
+@app.post("/api/v1/runs/{run_id}/approve")
+def api_run_approve(request: Request, run_id: int):
+    user = require_api(request, APPROVER_ROLES)
+    db = SessionLocal()
+    try:
+        run = db.get(Run, run_id)
+        if not run:
+            return _api_error(404, "run nao encontrado")
+        if run.status != "pending_approval":
+            return _api_error(409, f"run nao esta pendente (status={run.status})")
+        run.status = "approved"
+        run.approved_by = user["name"]
+        run.approved_at = utcnow()
+        audit(db, user["name"], "api_run_approve", f"run={run.id}")
+        db.commit()
+        data = _serialize_run(run)
+    finally:
+        db.close()
+    notify(
+        {
+            "event": "run_approved",
+            "run_id": run_id,
+            "snippet": data.get("snippet_name"),
+            "requested_by": data.get("requested_by"),
+            "approved_by": user["name"],
+        }
+    )
+    start_run_async(run_id)
+    return JSONResponse({"id": run_id, "status": "approved"})
+
+
+@app.post("/api/v1/runs/{run_id}/reject")
+async def api_run_reject(request: Request, run_id: int):
+    user = require_api(request, APPROVER_ROLES)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    reason = str((body or {}).get("reason") or "")
+    db = SessionLocal()
+    try:
+        run = db.get(Run, run_id)
+        if not run:
+            return _api_error(404, "run nao encontrado")
+        if run.status != "pending_approval":
+            return _api_error(409, f"run nao esta pendente (status={run.status})")
+        run.status = "rejected"
+        run.approved_by = user["name"]
+        run.approved_at = utcnow()
+        run.reject_reason = reason
+        audit(db, user["name"], "api_run_reject", f"run={run.id} motivo={reason}")
+        db.commit()
+    finally:
+        db.close()
+    notify(
+        {
+            "event": "run_rejected",
+            "run_id": run_id,
+            "reason": reason,
+            "rejected_by": user["name"],
+        }
+    )
+    return JSONResponse({"id": run_id, "status": "rejected"})
+
+
+@app.post("/api/v1/runs/{run_id}/cancel")
+def api_run_cancel(request: Request, run_id: int):
+    user = require_api(request, RUN_ROLES | APPROVER_ROLES)
+    db = SessionLocal()
+    try:
+        run = db.get(Run, run_id)
+        if not run:
+            return _api_error(404, "run nao encontrado")
+        if run.status != "pending_approval":
+            return _api_error(409, "so execucoes pendentes podem ser canceladas")
+        run.status = "cancelled"
+        audit(db, user["name"], "api_run_cancel", f"run={run.id}")
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"id": run_id, "status": "cancelled"})
 
 
 @app.get("/runs/{run_id}/export.csv")

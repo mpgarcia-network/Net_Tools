@@ -183,6 +183,31 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
 
+class ApiToken(Base):
+    """Token de API (Bearer) para integracoes.
+
+    Guardamos apenas o **hash** do token; o valor em claro so e exibido uma vez,
+    no momento da criacao. A API herda papel/alcada do usuario dono do token.
+    """
+
+    __tablename__ = "api_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), default="")
+    # prefixo visivel (ex.: "ssu_ab12cd34") para identificar o token na lista
+    prefix: Mapped[str] = mapped_column(String(20), default="", index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # dono (username) e papel efetivo no momento da criacao
+    owner: Mapped[str] = mapped_column(String(120), default="", index=True)
+    role: Mapped[str] = mapped_column(String(20), default="operator")
+    # escopo de site: vazio = todos; senao "site" ou "site:camada" separados por virgula
+    site_scope: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Policy(Base):
     """Politica de conformidade (golden config): regras + alvo de aplicacao."""
 

@@ -1,35 +1,83 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>{{ t('account.title') }}</h1>
-<div class="card narrow">
-  <p>{{ t('account.user') }}: <b>{{ user.name }}</b> <span class="badge">{{ t('role.' ~ user.role) }}</span></p>
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  {% if ok %}<p class="ok">{{ ok }}</p>{% endif %}
-  <form method="post" action="/account/password">
-    <label>{{ t('account.current') }}<input type="password" name="current" required></label>
-    <label>{{ t('account.new') }}<input type="password" name="new1" required></label>
-    <label>{{ t('account.new2') }}<input type="password" name="new2" required></label>
-    <button class="btn primary" type="submit">{{ t('account.change') }}</button>
-  </form>
+<p class="muted">{{ t('account.user') }}: <b>{{ user.name }}</b> <span class="badge">{{ t('role.' ~ user.role) }}</span></p>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if ok %}<p class="ok">{{ ok }}</p>{% endif %}
+
+<div class="grid2">
+  <div class="card">
+    <h2>{{ t('account.change') }}</h2>
+    <form method="post" action="/account/password">
+      <label>{{ t('account.current') }}<input type="password" name="current" required></label>
+      <label>{{ t('account.new') }}<input type="password" name="new1" required></label>
+      <label>{{ t('account.new2') }}<input type="password" name="new2" required></label>
+      <button class="btn primary" type="submit">{{ t('account.change') }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>{{ t('account.theme') }}</h2>
+    <form method="post" action="/account/theme">
+      <label class="chk"><input type="radio" name="theme" value="dark" {{ 'checked' if user.theme == 'dark' }}> {{ t('account.dark') }}</label>
+      <label class="chk"><input type="radio" name="theme" value="light" {{ 'checked' if user.theme == 'light' }}> {{ t('account.light') }}</label>
+      <label class="chk"><input type="radio" name="theme" value="auto" {{ 'checked' if user.theme == 'auto' }}> {{ t('account.auto') }}</label>
+      <button class="btn primary" type="submit">{{ t('account.save_theme') }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>{{ t('account.language') }}</h2>
+    <form method="post" action="/account/language">
+      {% for code, label in langs.items() %}
+      <label class="chk"><input type="radio" name="language" value="{{ code }}" {{ 'checked' if user.language == code }}> {{ label }}</label>
+      {% endfor %}
+      <button class="btn primary" type="submit">{{ t('account.save_language') }}</button>
+    </form>
+  </div>
 </div>
 
-<div class="card narrow">
-  <h2>{{ t('account.theme') }}</h2>
-  <form method="post" action="/account/theme">
-    <label class="chk"><input type="radio" name="theme" value="dark" {{ 'checked' if user.theme == 'dark' }}> {{ t('account.dark') }}</label>
-    <label class="chk"><input type="radio" name="theme" value="light" {{ 'checked' if user.theme == 'light' }}> {{ t('account.light') }}</label>
-    <label class="chk"><input type="radio" name="theme" value="auto" {{ 'checked' if user.theme == 'auto' }}> {{ t('account.auto') }}</label>
-    <button class="btn primary" type="submit">{{ t('account.save_theme') }}</button>
+<div class="card">
+  <h2>{{ t('account.tokens') }}</h2>
+  <p class="muted">{{ t('account.tokens_help') }}</p>
+  {% if new_token %}
+  <p class="ok">{{ t('account.token_once') }}</p>
+  <pre class="code" id="newtok">{{ new_token }}</pre>
+  {% endif %}
+  <form method="post" action="/account/tokens/new" class="inline-form">
+    <label>{{ t('account.token_name') }}<input type="text" name="name" placeholder="ex.: ansible / ci"></label>
+    <button class="btn primary" type="submit">{{ t('account.token_create') }}</button>
   </form>
-</div>
-
-<div class="card narrow">
-  <h2>{{ t('account.language') }}</h2>
-  <form method="post" action="/account/language">
-    {% for code, label in langs.items() %}
-    <label class="chk"><input type="radio" name="language" value="{{ code }}" {{ 'checked' if user.language == code }}> {{ label }}</label>
-    {% endfor %}
-    <button class="btn primary" type="submit">{{ t('account.save_language') }}</button>
-  </form>
+  {% if tokens %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>{{ t('account.token_name_col') }}</th>
+        <th>{{ t('account.token_prefix') }}</th>
+        <th>{{ t('account.token_role') }}</th>
+        <th>{{ t('account.token_last_used') }}</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+      {% for tk in tokens %}
+        <tr>
+          <td>{{ tk.name }}</td>
+          <td><code>{{ tk.prefix }}…</code></td>
+          <td><span class="badge">{{ t('role.' ~ tk.role) }}</span></td>
+          <td>{{ tk.last_used_at.strftime('%Y-%m-%d %H:%M') if tk.last_used_at else t('account.token_never') }}</td>
+          <td>
+            <form method="post" action="/account/tokens/{{ tk.id }}/delete"
+                  onsubmit="return confirm('{{ t('account.token_confirm') }}')">
+              <button class="btn danger" type="submit">{{ t('account.token_revoke') }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">{{ t('account.token_none') }}</p>
+  {% endif %}
 </div>
 {% endblock %}
