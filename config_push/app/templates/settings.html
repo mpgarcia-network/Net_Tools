@@ -45,6 +45,9 @@
     <label>{{ t('set.pre_commands') }}
       <textarea name="pre_commands" rows="4" spellcheck="false" placeholder="_cmdline-mode on&#10;Y&#10;1920">{{ settings.pre_commands }}</textarea>
     </label>
+    <label>{{ t('set.maint_candidates') }}
+      <input name="maintenance_candidates" value="{{ settings.maintenance_candidates }}" placeholder="1920,512900">
+    </label>
     <button class="btn primary" type="submit">{{ t('c.save') }}</button>
   </form>
 </div>

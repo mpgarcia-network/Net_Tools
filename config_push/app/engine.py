@@ -173,7 +173,10 @@ def save_config(device: dict) -> dict:
                     ssh.enable()
                 except Exception as e:  # noqa: BLE001
                     output_parts.append(f"[enable] aviso: {e}")
-            output_parts += run_pre_commands(ssh, device.get("pre_commands", ""))
+            pre_all = "\n".join(
+                x for x in (_auto_pre_commands(device), (device.get("pre_commands") or "").strip()) if x
+            )
+            output_parts += run_pre_commands(ssh, pre_all)
             out = ssh.send_command_timing(cmd, read_timeout=settings.conn_timeout * 4)
             output_parts.append(out)
             # deteccao simples de erro nas respostas mais comuns
@@ -194,6 +197,61 @@ def save_config(device: dict) -> dict:
     except Exception as e:  # noqa: BLE001
         log.exception("falha ao salvar config em %s", device.get("ip"))
         return {"status": "failed", "output": "\n".join(output_parts), "error": str(e)[:500]}
+    finally:
+        _GLOBAL_SEM.release()
+
+
+def _auto_pre_commands(device: dict) -> str:
+    """Pre-comandos automaticos por driver (ex.: Comware/3Com antigo -> _cmdline).
+
+    Se o device for Comware legacy e tiver senha de manutencao, monta:
+        _cmdline-mode on
+        Y
+        <senha>
+    """
+    from .catalog import is_legacy_comware
+
+    driver = (device.get("device_type") or "") + " " + resolve_device_type(
+        device.get("vendor", ""), device.get("protocol", "ssh"), device.get("device_type", "")
+    )
+    is_comware = "comware" in driver.lower() or "3com" in (device.get("vendor", "") or "").lower()
+    if is_comware and is_legacy_comware(device.get("vendor", ""), device.get("model", ""), driver):
+        pw = decrypt_secret(device.get("maintenance_password_enc", ""))
+        if pw:
+            return f"_cmdline-mode on\nY\n{pw}"
+    return ""
+
+
+_CMDLINE_ERR = ("incorrect", "invalid", "error", "unrecognized", "failed", "wrong")
+
+
+def discover_maintenance_password(device: dict, candidates: list[str]) -> dict:
+    """Descobre qual senha de _cmdline-mode funciona no device.
+
+    Tenta cada candidata: conecta, manda '_cmdline-mode on', 'Y' e a senha.
+    Devolve {status, password, output}. 'password' vazio se nenhuma funcionou.
+    """
+    conn, device_type, _detected, enable_pw = build_conn(device)
+    candidates = [c.strip() for c in candidates if c and c.strip()]
+    if not candidates:
+        return {"status": "failed", "password": "", "output": "sem candidatas"}
+    _GLOBAL_SEM.acquire()
+    try:
+        for pw in candidates:
+            try:
+                with ConnectHandler(**conn) as ssh:
+                    out = ssh.send_command_timing("_cmdline-mode on", read_timeout=settings.conn_timeout * 2)
+                    out += ssh.send_command_timing("Y", read_timeout=settings.conn_timeout * 2)
+                    out += ssh.send_command_timing(pw, read_timeout=settings.conn_timeout * 2)
+                    low = out.lower()
+                    if not any(e in low for e in _CMDLINE_ERR):
+                        # testa se o sistema realmente aceitou: tenta iniciar system-view
+                        probe = ssh.send_command_timing("system-view", read_timeout=settings.conn_timeout * 2)
+                        if "[" in probe or "system" in probe.lower():
+                            return {"status": "success", "password": pw, "output": out + "\n" + probe}
+            except Exception as e:  # noqa: BLE001
+                log.info("descobrir senha: tentativa falhou (%s)", e)
+        return {"status": "failed", "password": "", "output": "nenhuma senha funcionou"}
     finally:
         _GLOBAL_SEM.release()
 
@@ -368,7 +426,10 @@ def apply_to_device(
                     output_parts.append("[enable] modo privilegiado ativado")
                 except Exception as e:  # noqa: BLE001
                     output_parts.append(f"[enable] aviso: {e}")
-            output_parts += run_pre_commands(ssh, device.get("pre_commands", ""))
+            pre_all = "\n".join(
+                x for x in (_auto_pre_commands(device), (device.get("pre_commands") or "").strip()) if x
+            )
+            output_parts += run_pre_commands(ssh, pre_all)
             before = _read_config(ssh, device_type) if capture_diff else ""
             if dry_run:
                 # dry-run "real": valida a conexao e mostra a config atual

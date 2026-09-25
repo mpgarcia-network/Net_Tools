@@ -735,6 +735,7 @@ def device_save(
     site: str = Form(""),
     site_role: str = Form(""),
     pre_commands: str = Form(""),
+    maintenance_password: str = Form(""),
     enabled: str = Form(""),
 ):
     user = require_role(request, MANAGE_ROLES)
@@ -780,6 +781,8 @@ def device_save(
             device.password_enc = encrypt_secret(password)
         if enable_password:
             device.enable_password_enc = encrypt_secret(enable_password)
+        if maintenance_password:
+            device.maintenance_password_enc = encrypt_secret(maintenance_password)
         device.tags = tags.strip()
         device.site = site.strip()
         device.site_role = normalize_site_role(site_role)
@@ -841,6 +844,66 @@ def device_test(
     from .engine import test_connection
 
     res = test_connection(dev)
+    return JSONResponse(res)
+
+
+@app.post("/devices/discover-maint")
+def device_discover_maint(
+    request: Request,
+    device_id: str = Form(""),
+    ip: str = Form(""),
+    vendor: str = Form(""),
+    model: str = Form(""),
+    device_type: str = Form(""),
+    protocol: str = Form("ssh"),
+    port: int = Form(22),
+    username: str = Form(""),
+    password: str = Form(""),
+):
+    """Descobre a senha do _cmdline-mode (Comware/3Com antigo), testando as
+    candidatas globais; se achar e o device existir, salva nele.
+    """
+    require_role(request, MANAGE_ROLES)
+    ip = ip.strip()
+    if not ip:
+        raise HTTPException(400, "informe o IP")
+    db = SessionLocal()
+    try:
+        base = db.get(Device, int(device_id)) if device_id else None
+        s = get_settings(db)
+        candidates = [c.strip() for c in (s.maintenance_candidates or "").split(",") if c.strip()]
+        eff_user = (username.strip() or (base.username if base else "") or s.default_username)
+        eff_pwd_enc = (
+            encrypt_secret(password)
+            if password
+            else (base.password_enc if base else "") or s.default_password_enc
+        )
+    finally:
+        db.close()
+    dev = {
+        "ip": ip,
+        "vendor": vendor.strip(),
+        "model": model.strip(),
+        "device_type": device_type.strip(),
+        "protocol": (protocol or "ssh").strip().lower(),
+        "port": int(port),
+        "username": eff_user,
+        "password_enc": eff_pwd_enc,
+    }
+    from .engine import discover_maintenance_password
+
+    res = discover_maintenance_password(dev, candidates)
+    # se achou senha e o device existe, grava nela
+    if res.get("status") == "success" and res.get("password") and device_id:
+        db = SessionLocal()
+        try:
+            d = db.get(Device, int(device_id))
+            if d:
+                d.maintenance_password_enc = encrypt_secret(res["password"])
+                audit(db, require_login(request)["name"], "device_maint_pw", f"{d.name}")
+                db.commit()
+        finally:
+            db.close()
     return JSONResponse(res)
 
 
@@ -2295,6 +2358,7 @@ def settings_page(request: Request):
             "smtp_ssl": s.smtp_ssl,
             "smtp_from": s.smtp_from,
             "pre_commands": s.pre_commands,
+            "maintenance_candidates": s.maintenance_candidates,
             "auth_mode": s.auth_mode,
             "ldap_server": s.ldap_server,
             "ldap_domain": s.ldap_domain,
@@ -2333,13 +2397,17 @@ def settings_notify(request: Request, notify_webhook_url: str = Form("")):
 
 
 @app.post("/settings/pre-commands")
-def settings_pre_commands(request: Request, pre_commands: str = Form("")):
+def settings_pre_commands(
+    request: Request, pre_commands: str = Form(""), maintenance_candidates: str = Form("")
+):
     """Pre-comandos globais (rodam em todos os devices, antes da config)."""
     actor = require_role(request, {"admin"})
     db = SessionLocal()
     try:
         s = get_settings(db)
         s.pre_commands = pre_commands.strip()
+        if maintenance_candidates.strip():
+            s.maintenance_candidates = maintenance_candidates.strip()
         audit(db, actor["name"], "settings_pre_commands", "global")
         db.commit()
     finally:

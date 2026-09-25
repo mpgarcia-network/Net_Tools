@@ -167,17 +167,20 @@ def device_dict(db, device: Device, target=None) -> dict:
     s = db.get(Setting, 1)
     global_pre = (s.pre_commands if s else "") or ""
     pre = "\n".join(x for x in ((device.pre_commands or "").strip(), global_pre.strip()) if x)
+    maint_enc = device.maintenance_password_enc or (s.default_maintenance_password_enc if s else "")
     data = {
         "_target_id": target.id if target is not None else None,
         "name": device.name,
         "ip": device.ip,
         "vendor": device.vendor,
+        "model": device.model,
         "device_type": device.device_type,
         "protocol": device.protocol,
         "port": device.port,
         "username": username,
         "password_enc": password_enc,
         "enable_password_enc": enable_enc,
+        "maintenance_password_enc": maint_enc,
         "pre_commands": pre,
     }
     if target is not None and target.commands:

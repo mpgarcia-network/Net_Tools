@@ -41,7 +41,8 @@ _VENDORS: dict[str, list[tuple[str, str]]] = {
     "Fortinet": [("FortiGate (FortiOS)", "fortinet")],
     "HP": [
         ("ProCurve / ArubaOS-Switch", "hp_procurve"),
-        ("Comware (3Com/H3C)", "hp_comware"),
+        ("Comware V5/V7 (H3C/HPE moderno)", "hp_comware"),
+        ("3Com/H3C antigo (exige _cmdline-mode)", "hp_comware"),
     ],
     "Huawei": [("VRP (S/CE)", "huawei")],
     "Juniper": [("JunOS", "juniper_junos")],
@@ -175,6 +176,20 @@ def resolve_os_driver(os_name: str) -> str:
     """Resolve o driver Netmiko a partir do 'os' (LibreNMS). Vazio se desconhecido."""
     key = _norm(os_name).replace(" ", "_").replace("-", "_")
     return OS_DRIVER_MAP.get(key, "")
+
+
+def is_legacy_comware(vendor: str, model: str, driver: str = "") -> bool:
+    """True se o device e' um Comware/3Com/H3C ANTIGO (exige '_cmdline-mode on').
+
+    Marca apenas quando o MODELO escolhido indica legado (evita casar o Comware
+    moderno, cujo nome cita '3Com/H3C'). Vendor 3Com puro tambem entra.
+    """
+    m = (model or "").strip().lower()
+    if "legacy" in m or "_cmdline" in m or "antigo" in m:
+        return True
+    if (vendor or "").strip().lower() == "3com":
+        return True
+    return False
 
 
 def all_drivers() -> list[tuple[str, str]]:

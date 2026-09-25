@@ -52,6 +52,14 @@
     <label>{{ t('df.pre_commands') }}
       <textarea name="pre_commands" rows="3" spellcheck="false" placeholder="_cmdline-mode on&#10;Y&#10;1920">{{ device.pre_commands if device else '' }}</textarea>
     </label>
+    <label>{{ t('df.maintenance_password') }}
+      <input type="password" name="maintenance_password" id="maint_pw" autocomplete="new-password"
+        placeholder="{{ t('df.password_keep') if device and device.maintenance_password_enc else '' }}">
+    </label>
+    <div class="row">
+      <button class="btn" type="button" onclick="discoverMaint()">{{ t('df.discover_maint') }}</button>
+      <span class="muted" id="maintResult"></span>
+    </div>
     <label>{{ t('df.site_role') }}
       <select name="site_role">
         <option value="">{{ t('site.none') }}</option>

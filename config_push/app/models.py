@@ -48,6 +48,8 @@ class Device(Base):
     username: Mapped[str] = mapped_column(String(191), default="")
     password_enc: Mapped[str] = mapped_column(Text, default="")
     enable_password_enc: Mapped[str] = mapped_column(Text, default="")
+    # senha do modo manutencao (_cmdline-mode on) em Comware/3Com antigo
+    maintenance_password_enc: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[str] = mapped_column(String(255), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # Comandos executados logo apos conectar, antes da config (ex.: _cmdline-mode on
@@ -284,6 +286,9 @@ class Setting(Base):
     default_username: Mapped[str] = mapped_column(String(191), default="")
     default_password_enc: Mapped[str] = mapped_column(Text, default="")
     default_enable_password_enc: Mapped[str] = mapped_column(Text, default="")
+    default_maintenance_password_enc: Mapped[str] = mapped_column(Text, default="")
+    # senhas candidatas do _cmdline-mode (Comware/3Com antigo), separadas por virgula
+    maintenance_candidates: Mapped[str] = mapped_column(String(255), default="1920,512900")
     # webhook para notificacao (Teams/Slack/generico). Vazio = desligado.
     notify_webhook_url: Mapped[str] = mapped_column(String(500), default="")
     # Pre-comandos globais (rodam em todos os devices, antes da config).

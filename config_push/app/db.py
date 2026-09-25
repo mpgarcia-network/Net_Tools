@@ -82,6 +82,8 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN site VARCHAR(80) DEFAULT ''"))
             if "pre_commands" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN pre_commands TEXT DEFAULT ''"))
+            if "maintenance_password_enc" not in cols:
+                conn.execute(text("ALTER TABLE devices ADD COLUMN maintenance_password_enc TEXT DEFAULT ''"))
             if "site_role" not in cols:
                 conn.execute(text("ALTER TABLE devices ADD COLUMN site_role VARCHAR(20) DEFAULT ''"))
     if "snippets" in insp.get_table_names():
@@ -130,6 +132,14 @@ def ensure_schema() -> None:
             if "default_enable_password_enc" not in setcols:
                 conn.execute(
                     text("ALTER TABLE settings ADD COLUMN default_enable_password_enc TEXT DEFAULT ''")
+                )
+            if "default_maintenance_password_enc" not in setcols:
+                conn.execute(
+                    text("ALTER TABLE settings ADD COLUMN default_maintenance_password_enc TEXT DEFAULT ''")
+                )
+            if "maintenance_candidates" not in setcols:
+                conn.execute(
+                    text("ALTER TABLE settings ADD COLUMN maintenance_candidates VARCHAR(255) DEFAULT '1920,512900'")
                 )
             if "notify_webhook_url" not in setcols:
                 conn.execute(

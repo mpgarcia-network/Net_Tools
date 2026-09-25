@@ -196,6 +196,33 @@ async function testDevice() {
   }
 }
 
+// Device form: descobre a senha do _cmdline-mode (Comware/3Com antigo)
+async function discoverMaint() {
+  const form = document.querySelector('form[action="/devices/save"]');
+  const el = document.getElementById('maintResult');
+  const pw = document.getElementById('maint_pw');
+  if (!form || !el) return;
+  el.className = 'muted';
+  el.textContent = 'testando...';
+  try {
+    const res = await fetch('/devices/discover-maint', {
+      method: 'POST', body: new FormData(form), credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (data.status === 'success' && data.password) {
+      el.className = 'ok';
+      el.textContent = 'OK · senha encontrada: ' + data.password + ' (salva no device)';
+      if (pw) pw.value = data.password;
+    } else {
+      el.className = 'error';
+      el.textContent = 'Falha · nenhuma senha funcionou (' + (data.output || '') + ')';
+    }
+  } catch (e) {
+    el.className = 'error';
+    el.textContent = 'erro: ' + e;
+  }
+}
+
 // Configuracoes: testa a conexao de uma integracao (librenms/rconfig)
 async function testIntegration(source) {
   const el = document.getElementById('res-' + source);
