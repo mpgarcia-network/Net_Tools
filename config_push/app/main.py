@@ -10,7 +10,8 @@ from io import StringIO
 from urllib.parse import urlsplit
 
 from croniter import croniter
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -103,7 +104,17 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(
+    title=f"{settings.app_name} — API",
+    description=(
+        "API REST para integrações (CI/CD, Ansible, ITSM).\n\n"
+        "Autentique com **Bearer token** (crie em *Minha conta → Tokens de API*). "
+        "O token herda o papel e a alçada por camada do dono.\n\n"
+        "Clique em **Authorize** e cole o token para testar aqui mesmo."
+    ),
+    lifespan=lifespan,
+    openapi_tags=[{"name": "API v1", "description": "Execuções, devices e aprovações"}],
+)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
@@ -134,6 +145,14 @@ _CSP = (
     "script-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'; "
     "base-uri 'self'; form-action 'self'"
 )
+# O Swagger/ReDoc do FastAPI carregam assets do jsdelivr — libera so nessas rotas.
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+_CSP_DOCS = (
+    "default-src 'self'; img-src 'self' data: https://fastapi.tiangolo.com; "
+    "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+)
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS", "TRACE"}
 
 
@@ -161,7 +180,8 @@ async def security_middleware(request: Request, call_next):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "same-origin")
-    response.headers.setdefault("Content-Security-Policy", _CSP)
+    is_docs = any(request.url.path.startswith(p) for p in _DOCS_PATHS)
+    response.headers.setdefault("Content-Security-Policy", _CSP_DOCS if is_docs else _CSP)
     if settings.session_https_only:
         response.headers.setdefault(
             "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
@@ -1889,8 +1909,33 @@ def _serialize_run(run: Run, detail: bool = False) -> dict:
     return data
 
 
-@app.get("/api/v1/me")
-def api_me(request: Request):
+# --- documentacao (OpenAPI/Swagger) -----------------------------------------
+from pydantic import BaseModel, Field  # noqa: E402
+
+_bearer_scheme = HTTPBearer(auto_error=False, description="Cole o token (sem o 'Bearer ')")
+
+
+class ApiRunIn(BaseModel):
+    """Corpo para criar uma execucao (informe `commands` OU `snippet_ids`)."""
+
+    device_ids: list[int] = Field(..., description="IDs dos devices (use GET /api/v1/devices)")
+    commands: str = Field("", description="Comandos avulsos (um por linha)")
+    snippet_ids: list[int] = Field(default_factory=list, description="IDs de modelos (opcional)")
+    dry_run: bool = Field(False, description="Simula sem aplicar")
+    capture_diff: bool = Field(False, description="Captura diff antes/depois")
+
+
+class ApiRejectIn(BaseModel):
+    reason: str = Field("", description="Motivo da rejeicao")
+
+
+def _api_doc(_cred: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme)):
+    """Dependencia so para documentar o Authorize (Bearer) no Swagger."""
+    return None
+
+
+@app.get("/api/v1/me", tags=["API v1"], summary="Valida o token (papel/escopo)")
+def api_me(request: Request, _doc=Depends(_api_doc)):
     """Valida o token e devolve o papel/escopo efetivo."""
     user = require_api(request)
     return JSONResponse(
@@ -1903,8 +1948,13 @@ def api_me(request: Request):
     )
 
 
-@app.get("/api/v1/devices")
-def api_devices(request: Request, site: str = "", site_role: str = ""):
+@app.get("/api/v1/devices", tags=["API v1"], summary="Lista devices (respeita a alcada do token)")
+def api_devices(
+    request: Request,
+    site: str = "",
+    site_role: str = "",
+    _doc=Depends(_api_doc),
+):
     user = require_api(request)
     db = SessionLocal()
     try:
@@ -1935,8 +1985,13 @@ def api_devices(request: Request, site: str = "", site_role: str = ""):
     return JSONResponse({"count": len(data), "devices": data})
 
 
-@app.get("/api/v1/runs")
-def api_runs_list(request: Request, status: str = "", limit: int = 50):
+@app.get("/api/v1/runs", tags=["API v1"], summary="Lista execucoes")
+def api_runs_list(
+    request: Request,
+    status: str = "",
+    limit: int = 50,
+    _doc=Depends(_api_doc),
+):
     user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     limit = max(1, min(limit, 500))
     db = SessionLocal()
@@ -1955,8 +2010,8 @@ def api_runs_list(request: Request, status: str = "", limit: int = 50):
     return JSONResponse({"count": len(runs), "runs": [_serialize_run(r) for r in runs]})
 
 
-@app.get("/api/v1/runs/{run_id}")
-def api_run_detail(request: Request, run_id: int):
+@app.get("/api/v1/runs/{run_id}", tags=["API v1"], summary="Detalhe da execucao (com output/diff)")
+def api_run_detail(request: Request, run_id: int, _doc=Depends(_api_doc)):
     user = require_api(request, RUN_ROLES | APPROVER_ROLES | AUDIT_ROLES)
     db = SessionLocal()
     try:
@@ -1971,32 +2026,25 @@ def api_run_detail(request: Request, run_id: int):
     return JSONResponse(data)
 
 
-@app.post("/api/v1/runs")
-async def api_run_create(request: Request):
-    """Cria uma execucao.
+@app.post(
+    "/api/v1/runs",
+    tags=["API v1"],
+    summary="Cria uma execucao (push de comandos/modelos)",
+    status_code=201,
+)
+def api_run_create(body: ApiRunIn, request: Request, _doc=Depends(_api_doc)):
+    """Cria uma execucao. Informe `commands` (avulsos) **ou** `snippet_ids`.
 
-    Body JSON:
-      {
-        "device_ids": [1,2],          # obrigatorio (ou "devices" por IP/nome)
-        "commands": "vlan 100\\n name X",  # obrigatorio (comandos avulsos)
-        "snippet_ids": [3],           # opcional (alternativa a commands)
-        "dry_run": false,
-        "capture_diff": true
-      }
+    Se o token for de um `admin`, a execucao e auto-aprovada e dispara na hora;
+    os demais ficam pendentes de aprovacao (conforme `REQUIRE_APPROVAL`).
     """
     user = require_api(request, RUN_ROLES)
-    try:
-        body = await request.json()
-    except Exception:
-        return _api_error(400, "JSON invalido")
-    if not isinstance(body, dict):
-        return _api_error(400, "JSON invalido")
 
-    commands = str(body.get("commands") or "")
-    snippet_ids = [int(x) for x in (body.get("snippet_ids") or [])]
-    device_ids = [int(x) for x in (body.get("device_ids") or [])]
-    dry_run = bool(body.get("dry_run"))
-    capture_diff = bool(body.get("capture_diff"))
+    commands = body.commands or ""
+    snippet_ids = [int(x) for x in (body.snippet_ids or [])]
+    device_ids = [int(x) for x in (body.device_ids or [])]
+    dry_run = bool(body.dry_run)
+    capture_diff = bool(body.capture_diff)
 
     db = SessionLocal()
     try:
@@ -2107,11 +2155,11 @@ async def api_run_create(request: Request):
         )
     if run_status == "approved":
         start_run_async(run_id)
-    return JSONResponse(data, status_code=201)
+    return JSONResponse(data)
 
 
-@app.post("/api/v1/runs/{run_id}/approve")
-def api_run_approve(request: Request, run_id: int):
+@app.post("/api/v1/runs/{run_id}/approve", tags=["API v1"], summary="Aprova e dispara a execucao")
+def api_run_approve(request: Request, run_id: int, _doc=Depends(_api_doc)):
     user = require_api(request, APPROVER_ROLES)
     db = SessionLocal()
     try:
@@ -2141,14 +2189,15 @@ def api_run_approve(request: Request, run_id: int):
     return JSONResponse({"id": run_id, "status": "approved"})
 
 
-@app.post("/api/v1/runs/{run_id}/reject")
-async def api_run_reject(request: Request, run_id: int):
+@app.post("/api/v1/runs/{run_id}/reject", tags=["API v1"], summary="Rejeita a execucao")
+def api_run_reject(
+    run_id: int,
+    request: Request,
+    body: ApiRejectIn | None = None,
+    _doc=Depends(_api_doc),
+):
     user = require_api(request, APPROVER_ROLES)
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    reason = str((body or {}).get("reason") or "")
+    reason = str((body.reason if body else "") or "")
     db = SessionLocal()
     try:
         run = db.get(Run, run_id)
@@ -2175,8 +2224,8 @@ async def api_run_reject(request: Request, run_id: int):
     return JSONResponse({"id": run_id, "status": "rejected"})
 
 
-@app.post("/api/v1/runs/{run_id}/cancel")
-def api_run_cancel(request: Request, run_id: int):
+@app.post("/api/v1/runs/{run_id}/cancel", tags=["API v1"], summary="Cancela a execucao pendente")
+def api_run_cancel(request: Request, run_id: int, _doc=Depends(_api_doc)):
     user = require_api(request, RUN_ROLES | APPROVER_ROLES)
     db = SessionLocal()
     try:
