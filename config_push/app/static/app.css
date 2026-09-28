@@ -108,6 +108,18 @@ pre.code { background: var(--code-bg); border: 1px solid var(--border); border-r
 .config-box { border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow: auto; max-height: 640px; background: var(--code-bg); font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; white-space: pre; }
 tr.sel { background: var(--code-bg); }
 details > summary { cursor: pointer; margin: 6px 0; }
+.assistant-category { margin: 8px 0; }
+.assistant-category > summary { cursor: pointer; font-weight: 600; padding: 5px 0; }
+.assistant-prompts { display: flex; flex-wrap: wrap; gap: 7px; padding: 8px 0; }
+.assistant-prompt-row { display: inline-flex; align-items: center; gap: 3px; }
+.assistant-prompt-row .btn { white-space: normal; text-align: left; }
+.assistant-messages { display: flex; flex-direction: column; gap: 10px; max-height: 55vh; overflow: auto; margin-bottom: 14px; }
+.assistant-message { border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-width: 100%; }
+.assistant-message pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
+.assistant-user { align-self: flex-end; background: var(--code-bg); width: fit-content; max-width: 90%; }
+.assistant-assistant { align-self: stretch; }
+.assistant-include-config { align-self: end; }
+.assistant-messages:empty { display: none; }
 .logo-preview { max-width: 260px; max-height: 120px; background: var(--code-bg); padding: 8px; border-radius: 8px; }
 .devlist { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin: 8px 0; }
 .devitem { margin: 4px 0; }
@@ -140,3 +152,15 @@ th a:hover { text-decoration: underline; }
 /* Cards lado a lado na conta */
 .grid2 .card { margin: 0 0 14px; }
 .grid2 .card h2 { margin-top: 0; }
+.assistant-category { margin: 8px 0; }
+.assistant-category > summary { cursor: pointer; font-weight: 600; padding: 5px 0; }
+.assistant-prompts { display: flex; flex-wrap: wrap; gap: 7px; padding: 8px 0; }
+.assistant-prompt-row { display: inline-flex; align-items: center; gap: 3px; }
+.assistant-prompt-row .btn { white-space: normal; text-align: left; }
+.assistant-messages { display: flex; flex-direction: column; gap: 10px; max-height: 55vh; overflow: auto; margin-bottom: 14px; }
+.assistant-message { border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-width: 100%; }
+.assistant-message pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
+.assistant-user { align-self: flex-end; background: var(--code-bg); width: fit-content; max-width: 90%; }
+.assistant-assistant { align-self: stretch; }
+.assistant-include-config { align-self: end; }
+.assistant-messages:empty { display: none; }

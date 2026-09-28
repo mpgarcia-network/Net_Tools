@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('ai.title') }}</h1>
+<p class="muted">{{ t('ai.subtitle') }}</p>
+
+{% if not ai_ready %}
+<p class="error">{{ t('ai.not_configured') }} <a href="/settings">{{ t('nav.settings') }}</a></p>
+{% endif %}
+
+<div class="card">
+  <div class="grid2">
+    <label>{{ t('ai.device') }}
+      <select id="assistantDevice">
+        <option value="0">{{ t('ai.no_device') }}</option>
+        {% for d in devices %}
+        <option value="{{ d.id }}" data-driver="{{ d.device_type }}">{{ d.name }} · {{ d.ip }} · {{ d.vendor }} {{ d.site }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="chk assistant-include-config">
+      <input type="checkbox" id="assistantIncludeInventory">
+      {{ t('ai.include_inventory') }}
+    </label>
+    <label class="chk assistant-include-config">
+      <input type="checkbox" id="assistantIncludeConfig">
+      {{ t('ai.include_config') }}
+    </label>
+  </div>
+  <p class="muted">{{ t('ai.privacy_hint') }}</p>
+</div>
+
+<div class="card">
+  <h2>{{ t('ai.question_bank') }}</h2>
+  {% for category, prompts in bank.items() %}
+  <details class="assistant-category" {% if loop.first %}open{% endif %}>
+    <summary>{{ category }}</summary>
+    <div class="assistant-prompts">
+      {% for p in prompts %}
+      <div class="assistant-prompt-row">
+        <button class="btn assistant-prompt" type="button" data-prompt="{{ p.body }}"
+                onclick="assistantUsePrompt(this)">{{ p.title }}</button>
+        {% if not p.builtin %}
+        <form method="post" action="/assistant/prompts/{{ p.id }}/delete"
+              onsubmit="return confirm('{{ t('ai.prompt_delete_confirm') }}')">
+          <button class="link danger" type="submit">×</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>{{ t('ai.chat') }}</h2>
+  <div id="assistantMessages" class="assistant-messages" aria-live="polite"></div>
+  <form id="assistantForm" onsubmit="assistantSend(event)">
+    <label>{{ t('ai.ask') }}
+      <textarea id="assistantInput" rows="4" placeholder="{{ t('ai.ask_placeholder') }}" required></textarea>
+    </label>
+    <div class="row between">
+      <span id="assistantStatus" class="muted"></span>
+      <button class="btn primary" type="submit">{{ t('ai.send') }}</button>
+    </div>
+  </form>
+  <form id="assistantSaveSnippet" method="post" action="/assistant/save-snippet" style="display:none">
+    <input type="hidden" name="driver" id="assistantSnippetDriver">
+    <label>{{ t('ai.snippet_name') }}<input name="name" value="Assistente - rascunho"></label>
+    <label>{{ t('ai.snippet_body_review') }}
+      <textarea name="body" id="assistantSnippetBody" rows="12" spellcheck="false"></textarea>
+    </label>
+    <button class="btn" type="submit">{{ t('ai.save_as_snippet') }}</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{ t('ai.add_prompt') }}</h2>
+  <form method="post" action="/assistant/prompts">
+    <div class="grid2">
+      <label>{{ t('ai.prompt_category') }}<input name="category" value="Geral" required></label>
+      <label>{{ t('ai.prompt_title') }}<input name="title" required></label>
+    </div>
+    <label>{{ t('ai.prompt_body') }}<textarea name="body" rows="3" required></textarea></label>
+    <p class="muted">{{ t('ai.prompt_placeholders') }}</p>
+    <button class="btn" type="submit">{{ t('ai.prompt_add') }}</button>
+  </form>
+</div>
+{% endblock %}

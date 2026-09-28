@@ -278,6 +278,101 @@ async function previewSnippet() {
   }
 }
 
+// Configuracoes: testa o conector do Assistente de IA
+async function testAI() {
+  const form = document.getElementById('ai-config');
+  const el = document.getElementById('res-ai');
+  if (!form || !el) return;
+  el.className = 'muted';
+  el.textContent = el.dataset.testing || '...';
+  try {
+    const body = new FormData(form);
+    const tls = form.querySelector('[name="ai_verify_tls"]');
+    body.set('ai_verify_tls', tls && tls.checked ? '1' : '0');
+    const res = await fetch('/settings/ai/test', {
+      method: 'POST', body: body, credentials: 'same-origin',
+    });
+    const data = await res.json();
+    el.className = data.status === 'success' ? 'ok' : 'error';
+    el.textContent = data.status === 'success'
+      ? 'OK · ' + (data.message || '')
+      : 'falha · ' + (data.error || data.status);
+  } catch (e) {
+    el.className = 'error';
+    el.textContent = 'erro: ' + e;
+  }
+}
+
+// Assistente: banco de perguntas + conversa com a IA
+const assistantHistory = [];
+
+function assistantUsePrompt(button) {
+  const input = document.getElementById('assistantInput');
+  if (!input) return;
+  input.value = button.dataset.prompt || '';
+  input.focus();
+}
+
+function assistantAddMessage(role, text) {
+  const box = document.getElementById('assistantMessages');
+  if (!box) return;
+  const row = document.createElement('div');
+  row.className = 'assistant-message assistant-' + role;
+  const label = document.createElement('strong');
+  label.textContent = role === 'user' ? 'Você' : 'Assistente';
+  const pre = document.createElement('pre');
+  pre.textContent = text;
+  row.append(label, pre);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function assistantSend(event) {
+  event.preventDefault();
+  const input = document.getElementById('assistantInput');
+  const status = document.getElementById('assistantStatus');
+  const device = document.getElementById('assistantDevice');
+  const inventory = document.getElementById('assistantIncludeInventory');
+  const include = document.getElementById('assistantIncludeConfig');
+  const question = (input?.value || '').trim();
+  if (!question) return;
+  assistantAddMessage('user', question);
+  if (status) { status.className = 'muted'; status.textContent = '...'; }
+  const body = new URLSearchParams({
+    prompt: question,
+    device_id: device?.value || '0',
+    include_inventory: inventory?.checked ? '1' : '',
+    include_config: include?.checked ? '1' : '',
+    history: JSON.stringify(assistantHistory.slice(-8)),
+  });
+  input.value = '';
+  try {
+    const res = await fetch('/assistant/chat', {
+      method: 'POST', body, credentials: 'same-origin',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    assistantAddMessage('assistant', data.answer || '');
+    assistantHistory.push({ role: 'user', content: question });
+    assistantHistory.push({ role: 'assistant', content: data.answer || '' });
+    const saveForm = document.getElementById('assistantSaveSnippet');
+    const snippetBody = document.getElementById('assistantSnippetBody');
+    const snippetDriver = document.getElementById('assistantSnippetDriver');
+    if (saveForm && snippetBody) {
+      const code = (data.answer || '').match(/```[^\n]*\n([\s\S]*?)```/);
+      snippetBody.value = code ? code[1].trim() : (data.answer || '');
+      if (snippetDriver && device?.selectedOptions?.[0]) {
+        snippetDriver.value = device.selectedOptions[0].dataset.driver || '';
+      }
+      saveForm.style.display = 'block';
+    }
+    if (status) { status.className = 'ok'; status.textContent = ''; }
+  } catch (e) {
+    assistantAddMessage('assistant', 'Erro: ' + e.message);
+    if (status) { status.className = 'error'; status.textContent = ''; }
+  }
+}
+
 // Polling do status do run (pagina de detalhe)
 (function () {
   if (typeof window.RUN_ID === 'undefined') return;

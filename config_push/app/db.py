@@ -187,6 +187,15 @@ def ensure_schema() -> None:
             ):
                 if col not in setcols:
                     conn.execute(text(f"ALTER TABLE settings ADD COLUMN {col} {ddl}"))
+            for col, ddl in (
+                ("ai_provider", "VARCHAR(20) DEFAULT 'openai'"),
+                ("ai_base_url", "VARCHAR(500) DEFAULT ''"),
+                ("ai_api_key_enc", "TEXT DEFAULT ''"),
+                ("ai_model", "VARCHAR(120) DEFAULT ''"),
+                ("ai_verify_tls", "BOOLEAN DEFAULT 1"),
+            ):
+                if col not in setcols:
+                    conn.execute(text(f"ALTER TABLE settings ADD COLUMN {col} {ddl}"))
     if _IS_SQLITE and "devices" in insp.get_table_names():
         # indice unico de IP (best-effort: so cria se nao houver duplicatas legadas)
         try:

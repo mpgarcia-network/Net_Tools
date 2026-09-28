@@ -33,6 +33,11 @@ services:
       - RCONFIG_URL=${RCONFIG_URL:-}
       - RCONFIG_TOKEN=${RCONFIG_TOKEN:-}
       - RCONFIG_VERIFY_TLS=${RCONFIG_VERIFY_TLS:-true}
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_BASE_URL=${AI_BASE_URL:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_MODEL=${AI_MODEL:-}
+      - AI_VERIFY_TLS=${AI_VERIFY_TLS:-true}
     volumes:
       - data:/data
     networks:

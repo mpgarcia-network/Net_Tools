@@ -113,6 +113,19 @@ def template_vars(db) -> dict:
         return {"globals": {}, "sites": {}}
 
 
+def ai_config(db) -> dict:
+    """Conexao do Assistente (IA): banco primeiro, senao env."""
+    s = get_settings(db)
+    base = (s.ai_base_url or "").strip()
+    return {
+        "provider": (s.ai_provider or os.environ.get("AI_PROVIDER") or "openai").strip(),
+        "base": (base or os.environ.get("AI_BASE_URL") or "").rstrip("/"),
+        "key": decrypt_secret(s.ai_api_key_enc) or (os.environ.get("AI_API_KEY") or ""),
+        "model": (s.ai_model or os.environ.get("AI_MODEL") or "").strip(),
+        "verify": s.ai_verify_tls if base else env_bool("AI_VERIFY_TLS", True),
+    }
+
+
 def integration_config(db) -> dict[str, dict]:
     """Conexoes (LibreNMS/rConfig) efetivas: banco primeiro, senao env.
 

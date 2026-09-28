@@ -19,7 +19,17 @@ os.environ["ADMIN_USER"] = "admin"
 os.environ["ADMIN_PASSWORD"] = "test-admin-pass"
 os.environ["REQUIRE_APPROVAL"] = "true"
 # desliga integracoes/externos que poderiam vazar para o ambiente
-for _var in ("LIBRENMS_URL", "LIBRENMS_TOKEN", "RCONFIG_URL", "RCONFIG_TOKEN"):
+for _var in (
+    "LIBRENMS_URL",
+    "LIBRENMS_TOKEN",
+    "RCONFIG_URL",
+    "RCONFIG_TOKEN",
+    "AI_PROVIDER",
+    "AI_BASE_URL",
+    "AI_API_KEY",
+    "AI_MODEL",
+    "AI_VERIFY_TLS",
+):
     os.environ.pop(_var, None)
 
 import pytest  # noqa: E402

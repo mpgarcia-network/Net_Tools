@@ -174,6 +174,39 @@
 </div>
 
 <div class="card">
+  <h2>{{ t('ai.settings_title') }}</h2>
+  <p class="muted">{{ t('ai.settings_hint') }}</p>
+  <form id="ai-config" method="post" action="/settings/ai">
+    <div class="grid2">
+      <label>{{ t('ai.provider') }}
+        <select name="ai_provider">
+          <option value="openai" {{ 'selected' if settings.ai_provider == 'openai' }}>OpenAI-compatible</option>
+          <option value="azure" {{ 'selected' if settings.ai_provider == 'azure' }}>Azure OpenAI</option>
+          <option value="anthropic" {{ 'selected' if settings.ai_provider == 'anthropic' }}>Anthropic</option>
+        </select>
+      </label>
+      <label>{{ t('ai.model') }}
+        <input name="ai_model" value="{{ settings.ai_model }}" placeholder="gpt-4o-mini">
+      </label>
+      <label>{{ t('ai.base_url') }}
+        <input name="ai_base_url" value="{{ settings.ai_base_url }}" placeholder="https://api.openai.com/v1">
+      </label>
+      <label>{{ t('ai.api_key') }}
+        <input type="password" name="ai_api_key" autocomplete="new-password"
+          placeholder="{{ t('set.already_set') if settings.has_ai_key else t('set.not_set') }}">
+      </label>
+    </div>
+    <label class="chk"><input type="checkbox" name="ai_verify_tls" value="1" {{ 'checked' if settings.ai_verify_tls }}> {{ t('set.api_verify') }}</label>
+    <label class="chk"><input type="checkbox" name="clear_key" value="1"> {{ t('ai.clear_key') }}</label>
+    <div class="row">
+      <button class="btn primary" type="submit">{{ t('ai.save') }}</button>
+      <button class="btn" type="button" onclick="testAI()">{{ t('ai.test') }}</button>
+      <span class="muted" id="res-ai" data-testing="{{ t('set.api_testing') }}"></span>
+    </div>
+  </form>
+</div>
+
+<div class="card">
   <h2>{{ t('set.texts') }}</h2>
   <form method="post" action="/settings">
     <label>{{ t('set.brand_login') }}<input name="brand_login" value="{{ settings.brand_login }}"></label>

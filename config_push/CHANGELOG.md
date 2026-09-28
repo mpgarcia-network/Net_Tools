@@ -1,5 +1,16 @@
 # Changelog — Net Tools
 
+## v0.7.0 — 2026-09-25
+
+**Assistente de IA + biblioteca de perguntas**
+- Aba **Assistente** com perguntas prontas e perguntas personalizadas por categoria.
+- Contexto opcional: device selecionado, inventário (opt-in) e última config do rConfig
+  (opt-in; segredos conhecidos mascarados).
+- Conector configurável em **Configurações** (OpenAI-compatible, Azure OpenAI, Anthropic);
+  chave cifrada em repouso.
+- Respostas podem ser revisadas e salvas como **rascunho de Modelo**; a IA não aplica
+  comandos diretamente.
+
 ## v0.6.0 — 2026-09-25
 
 **Templating de comandos com variáveis (Jinja)**

@@ -299,6 +299,23 @@ class ComplianceResult(Base):
     run: Mapped["ComplianceRun"] = relationship(back_populates="results")
 
 
+class PromptTemplate(Base):
+    """Pergunta/instrucao personalizada do Assistente (base de conhecimento).
+
+    As perguntas de fabrica ficam em ``app/prompts.py`` (codigo); aqui so as
+    criadas pelo usuario.
+    """
+
+    __tablename__ = "prompt_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category: Mapped[str] = mapped_column(String(80), default="Geral", index=True)
+    title: Mapped[str] = mapped_column(String(191), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Setting(Base):
     """Configuracoes da aplicacao (singleton id=1)."""
 
@@ -324,6 +341,12 @@ class Setting(Base):
     # Variaveis de template (Jinja) globais e por site. JSON:
     # {"globals": {...}, "sites": {"HU1": {...}}}
     template_vars: Mapped[str] = mapped_column(Text, default="")
+    # Conector de IA (Assistente). Provedor: openai | azure | anthropic
+    ai_provider: Mapped[str] = mapped_column(String(20), default="openai")
+    ai_base_url: Mapped[str] = mapped_column(String(500), default="")
+    ai_api_key_enc: Mapped[str] = mapped_column(Text, default="")
+    ai_model: Mapped[str] = mapped_column(String(120), default="")
+    ai_verify_tls: Mapped[bool] = mapped_column(Boolean, default=True)
     # Autenticacao: local | ldap | both (local + AD)
     auth_mode: Mapped[str] = mapped_column(String(10), default="local")
     ldap_server: Mapped[str] = mapped_column(String(255), default="")  # ldap://host:389
