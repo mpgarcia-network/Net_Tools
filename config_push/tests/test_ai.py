@@ -107,3 +107,16 @@ def test_chat_parses_anthropic_response(monkeypatch):
         "pergunta",
     )
     assert result == "resposta"
+
+
+def test_assistant_page_renders_prompt_bank(auth_client):
+    response = auth_client.get("/assistant")
+    assert response.status_code == 200
+    assert "Assistente de rede" in response.text
+    assert "Criar VLAN" in response.text
+
+
+def test_settings_page_renders_ai_connector(auth_client):
+    response = auth_client.get("/settings")
+    assert response.status_code == 200
+    assert "Conector de IA" in response.text
