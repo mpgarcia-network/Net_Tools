@@ -64,6 +64,46 @@ def test_list_devices_nao_vaza_senha(monkeypatch):
     assert "VAZOU" not in str(rows)
 
 
+def test_list_devices_paginado(monkeypatch):
+    c = _conn()
+
+    def fake_req(path, *a, **k):
+        if "page=2" in path:
+            return json.dumps(
+                {
+                    "data": [
+                        {
+                            "id": 2,
+                            "device_name": "AGG",
+                            "device_ip": "10.0.0.2",
+                            "last_config": {"id": 22},
+                        }
+                    ],
+                    "last_page": 2,
+                    "total": 2,
+                }
+            ).encode()
+        return json.dumps(
+            {
+                "data": [
+                    {
+                        "id": 1,
+                        "device_name": "CORE",
+                        "device_ip": "10.0.0.1",
+                        "last_config": {"id": 11},
+                    }
+                ],
+                "last_page": 2,
+                "total": 2,
+            }
+        ).encode()
+
+    monkeypatch.setattr(c, "_req", fake_req)
+    rows = c.list_devices()
+    assert len(rows) == 2
+    assert {r["name"] for r in rows} == {"CORE", "AGG"}
+
+
 def test_trigger_backup_payload(monkeypatch):
     c = _conn()
     seen = {}

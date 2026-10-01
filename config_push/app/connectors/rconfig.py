@@ -64,8 +64,13 @@ class RConfigConnector:
     def ping(self) -> str:
         """Valida a conexao. Levanta excecao com o erro real se falhar."""
         data = json.loads(self._req("/api/v2/devices").decode())
-        rows = data.get("data", []) if isinstance(data, dict) else (data or [])
-        return f"{len(rows)} device(s)"
+        if isinstance(data, dict):
+            total = data.get("total")
+            if total is None:
+                total = len(data.get("data") or [])
+        else:
+            total = len(data or [])
+        return f"{total} device(s)"
 
     def _req(self, path: str, method: str = "GET", data=None, accept: str = "application/json") -> bytes:
         url = f"{self.base}{path}"
@@ -91,14 +96,30 @@ class RConfigConnector:
         return {k: v for k, v in d.items() if k not in cls._SECRET_FIELDS}
 
     # -- inventario ----------------------------------------------------------
+    def _fetch_all_devices(self) -> list[dict]:
+        """Devolve TODOS os devices da API v2 (pagina em 15 por pagina)."""
+        rows: list[dict] = []
+        page = 1
+        while True:
+            try:
+                data = json.loads(self._req(f"/api/v2/devices?page={page}").decode())
+            except Exception:  # noqa: BLE001
+                break
+            if isinstance(data, dict):
+                rows.extend(data.get("data") or [])
+                last_page = data.get("last_page")
+                if last_page is None or page >= int(last_page):
+                    break
+            else:
+                rows.extend(data or [])
+                break
+            page += 1
+        return rows
+
     def list_devices(self) -> list[dict]:
         if not self.available():
             return []
-        try:
-            data = json.loads(self._req("/api/v2/devices").decode())
-        except Exception:  # noqa: BLE001
-            return []
-        rows = data.get("data", []) if isinstance(data, dict) else (data or [])
+        rows = self._fetch_all_devices()
         out = []
         for raw in rows:
             d = self._slim_device(raw)
