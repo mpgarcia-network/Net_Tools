@@ -26,7 +26,6 @@
   {% else %}
   {{ t('bk.rconfig_summary_empty') }}
   {% endif %}
-  · {{ t('bk.stale_hint', h=stale_hours) }}
 </p>
 {% endif %}
 
@@ -40,8 +39,8 @@
       <td>{{ it.name }}</td>
       <td>{{ it.ip }}</td>
       <td>
-        <span class="st st-{{ 'success' if st == 'ok' else 'failed' if st == 'failed' else 'running' if st == 'stale' else 'pending' }}">
-          {{ t('bk.state_' ~ (st if st in ['ok','stale','never'] else 'never')) }}
+        <span class="st st-{{ 'success' if st == 'ok' else 'failed' if st == 'failed' else 'pending' }}">
+          {{ t('bk.state_' ~ ('ok' if st == 'ok' else 'never')) }}
         </span>
         {% if st == 'unlinked' %}<span class="muted">{{ t('bk.not_linked') }}</span>{% endif %}
       </td>

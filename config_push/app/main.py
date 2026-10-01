@@ -2953,7 +2953,6 @@ def api_backups(request: Request, _doc=Depends(_api_doc)):
                 summary = conn.summary()
             except Exception:  # noqa: BLE001
                 summary = {}
-        now = utcnow()
         data = []
         for d in devices:
             if not can_target(user["role"], d.site_role):
@@ -2966,8 +2965,6 @@ def api_backups(request: Request, _doc=Depends(_api_doc)):
                 status = "unlinked"
             elif not last_id:
                 status = "never"
-            elif last_at and (now - last_at) > timedelta(hours=BACKUP_STALE_HOURS):
-                status = "stale"
             else:
                 status = "ok"
             data.append(
@@ -3405,7 +3402,6 @@ def healthz():
 # ---------------------------------------------------------------------------
 # Backups (coleta + versionamento + diff)
 # ---------------------------------------------------------------------------
-BACKUP_STALE_HOURS = 24
 
 
 def _rconfig_connector(db):
@@ -3451,7 +3447,7 @@ def backups_list(request: Request):
         rconfig_ok = conn.available()
         index = _rconfig_index(conn)
         now = utcnow()
-        counts = {"ok": 0, "failed": 0, "stale": 0, "never": 0, "unlinked": 0}
+        counts = {"ok": 0, "failed": 0, "never": 0, "unlinked": 0}
         # 1o passo: sincroniza last_config_id/last_config_at (correlacao por IP)
         for d in devices:
             info = _rconfig_for(index, d)
@@ -3470,8 +3466,6 @@ def backups_list(request: Request):
                 state = "unlinked"
             elif not last_id:
                 state = "never"
-            elif last_at and (now - last_at) > timedelta(hours=BACKUP_STALE_HOURS):
-                state = "stale"
             else:
                 state = "ok"
             counts[state] += 1
@@ -3494,7 +3488,6 @@ def backups_list(request: Request):
         items=items,
         counts=counts,
         summary=summary,
-        stale_hours=BACKUP_STALE_HOURS,
         rconfig_ok=rconfig_ok,
     )
 
