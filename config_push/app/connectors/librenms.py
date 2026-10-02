@@ -27,6 +27,7 @@ _OS_VENDOR_MODEL: dict[str, tuple[str, str]] = {
     "h3c": ("HP", "Comware (3Com/H3C)"),
     "fortigate": ("Fortinet", "FortiGate (FortiOS)"),
     "fortios": ("Fortinet", "FortiGate (FortiOS)"),
+    "fortiswitch": ("Fortinet", "FortiSwitch (FortiSwitchOS)"),
     "ios": ("Cisco", "IOS / IOS-XE (Catalyst, ISR)"),
     "iosxe": ("Cisco", "IOS / IOS-XE (Catalyst, ISR)"),
     "nxos": ("Cisco", "NX-OS (Nexus)"),

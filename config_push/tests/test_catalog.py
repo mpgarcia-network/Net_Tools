@@ -28,7 +28,13 @@ def test_resolve_driver_default():
 def test_resolve_os_driver():
     assert resolve_os_driver("ios") == "cisco_ios"
     assert resolve_os_driver("nxos") == "cisco_nxos"
+    assert resolve_os_driver("fortiswitch") == "fortinet"
     assert resolve_os_driver("os-desconhecido") == ""
+
+
+def test_resolve_driver_fortiswitch():
+    assert resolve_driver("Fortinet", "FortiSwitch (FortiSwitchOS)") == "fortinet"
+    assert resolve_driver("Fortinet", "FortiGate (FortiOS)") == "fortinet"
 
 
 def test_is_legacy_comware():

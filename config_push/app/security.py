@@ -109,6 +109,8 @@ VENDOR_MAP = {
     "junos": "juniper_junos",
     "fortinet": "fortinet",
     "fortigate": "fortinet",
+    "fortiswitch": "fortinet",
+    "fortiswitch_os": "fortinet",
     "vyos": "vyos",
     "mikrotik": "mikrotik_routeros",
     "dell": "dell_os10",
