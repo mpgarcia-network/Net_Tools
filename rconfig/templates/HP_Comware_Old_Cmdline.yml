@@ -1,0 +1,31 @@
+# rConfig connection template (custom - HP Comware/3Com/H3C legado)
+# Esses devices exigem "_cmdline-mode on" antes de aceitar comandos.
+# A sequencia envia o comando + confirmacao Y; a senha fica no campo
+# Enable Password do device (512900 ou Jinhua1920unauthorized, por modelo).
+main:
+  name: "HP Comware legado - _cmdline (SSH)"
+  desc: "HP Comware/3Com/H3C legado que exige _cmdline-mode antes dos comandos."
+
+connect:
+  timeout: 15
+  protocol: ssh
+  port: 22
+
+auth:
+  username: "Username:"
+  password: "Password:"
+  enable: on
+  enableCmd: "_cmdline-mode on\nY"
+  enablePassPrmpt: "password"
+  enableUsername: off
+  enableUsernamePrmpt: "Username:"
+  hpAnyKeyStatus: off
+  hpAnyKeyPrmpt: "Press any key to continue"
+
+config:
+  linebreak: "n"
+  paging: on
+  pagingCmd: "screen-length disable"
+  resetPagingCmd: "undo screen-length disable"
+  saveConfig: "save force"
+  exitCmd: "quit"

@@ -1,0 +1,26 @@
+# rConfig connection template (custom - Dell N-series / OS6)
+main:
+  name: "Dell N-series (OS6) - SSH - No Enable"
+  desc: "Dell Networking N-series (OS6) SSH sem enable."
+
+connect:
+  timeout: 15
+  protocol: ssh
+  port: 22
+
+auth:
+  username: "User Name:"
+  password: "Password:"
+  enable: off
+  enableCmd: "enable"
+  enablePassPrmpt: "Password:"
+  hpAnyKeyStatus: off
+  hpAnyKeyPrmpt: "Press any key to continue"
+
+config:
+  linebreak: "n"
+  paging: on
+  pagingCmd: "terminal length 0"
+  resetPagingCmd: "terminal length 40"
+  saveConfig: "copy running-config startup-config"
+  exitCmd: "exit"

@@ -1,0 +1,25 @@
+# rConfig connection template
+main:
+  name: "Aruba AOS-S - SSH - No Enable"
+  desc: "Aruba AOS-S SSH based connection without enable mode. Tested on 2930F."
+connect:
+  timeout: 5
+  protocol: ssh
+  port: 22
+auth:
+  username: "Username:"
+  password: "Password:"
+  enable: off
+  enableCmd: "enable"
+  enablePassPrmpt: "Password:"
+  hpAnyKeyStatus: on
+  hpAnyKeyPrmpt: "Press any key to continue"
+config:
+  linebreak: "\n"
+  paging: on
+  pagingCmd: "no page"
+  resetPagingCmd: "page"
+  pagerPrompt: ""
+  pagerPromptCmd: ""
+  saveConfig: "save"
+  exitCmd: "quit"
