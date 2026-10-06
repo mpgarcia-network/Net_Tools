@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import os
+import time
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -120,6 +121,60 @@ VENDOR_MAP = {
     "paloalto": "paloalto_panos",
     "palo-alto": "paloalto_panos",
 }
+
+
+# ---------------------------------------------------------------------------
+# 2FA (TOTP - RFC 6238) e hash encadeado da auditoria (trilha imutavel)
+# ---------------------------------------------------------------------------
+TOTP_DIGITS = 6
+TOTP_PERIOD = 30
+
+
+def generate_totp_secret() -> str:
+    """Gera um segredo TOTP (base32, 20 bytes) para o app autenticador."""
+    return base64.b32encode(os.urandom(20)).decode()
+
+
+def totp_uri(secret: str, account: str, issuer: str = "Config Push") -> str:
+    return (
+        f"otpauth://totp/{issuer}:{account}"
+        f"?secret={secret}&issuer={issuer}&digits={TOTP_DIGITS}&period={TOTP_PERIOD}"
+    )
+
+
+def totp_code(secret: str, counter: int | None = None) -> str:
+    """Codigo TOTP de 6 digitos para o contador (default: agora)."""
+    if counter is None:
+        counter = int(time.time() // TOTP_PERIOD)
+    key = base64.b32decode(secret, casefold=True)
+    msg = counter.to_bytes(8, "big")
+    digest = hmac.new(key, msg, hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    binary = (
+        (digest[offset] & 0x7F) << 24
+        | (digest[offset + 1] & 0xFF) << 16
+        | (digest[offset + 2] & 0xFF) << 8
+        | (digest[offset + 3] & 0xFF)
+    )
+    return str(binary % (10**TOTP_DIGITS)).zfill(TOTP_DIGITS)
+
+
+def verify_totp(secret: str, code: str, window: int = 1) -> bool:
+    """Valida um codigo TOTP com tolerancia de ``window`` passos (30s cada)."""
+    code = (code or "").strip()
+    if not secret or len(code) != TOTP_DIGITS or not code.isdigit():
+        return False
+    now = int(time.time() // TOTP_PERIOD)
+    for i in range(-window, window + 1):
+        if hmac.compare_digest(totp_code(secret, now + i), code):
+            return True
+    return False
+
+
+def chain_hash(prev_hash: str, user: str, action: str, detail: str, created_at: str) -> str:
+    """Hash encadeado de um registro de auditoria (anti-tamper)."""
+    payload = f"{prev_hash}|{user}|{action}|{detail}|{created_at}"
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 # Sentinela: o driver sera detectado em runtime (engine usa SSHDetect).

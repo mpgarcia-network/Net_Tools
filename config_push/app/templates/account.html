@@ -35,6 +35,30 @@
       <button class="btn primary" type="submit">{{ t('account.save_language') }}</button>
     </form>
   </div>
+
+  <div class="card">
+    <h2>{{ t('account.2fa') }}</h2>
+    {% if totp_enabled %}
+    <p class="ok">{{ t('account.2fa_enabled') }}</p>
+    <form method="post" action="/account/2fa/disable">
+      <label>{{ t('account.2fa_password') }}<input type="password" name="password" required></label>
+      <button class="btn danger" type="submit">{{ t('account.2fa_disable') }}</button>
+    </form>
+    {% elif totp_secret %}
+    <p class="muted">{{ t('account.2fa_secret') }}</p>
+    <pre class="code">{{ totp_secret }}</pre>
+    <p class="muted">{{ t('account.2fa_uri') }}</p>
+    <pre class="code" style="word-break:break-all">{{ totp_uri }}</pre>
+    <form method="post" action="/account/2fa/confirm">
+      <label>{{ t('account.2fa_confirm_code') }}<input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required></label>
+      <button class="btn primary" type="submit">{{ t('account.2fa_confirm') }}</button>
+    </form>
+    {% else %}
+    <form method="post" action="/account/2fa/setup">
+      <button class="btn primary" type="submit">{{ t('account.2fa_enable') }}</button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
 <div class="card">

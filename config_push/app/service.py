@@ -11,6 +11,7 @@ from .config import settings
 from .db import SessionLocal, utcnow
 from .engine import run_batch
 from .models import AuditLog, Backup, Device, Run, RunTarget, Schedule, Setting, User
+from .security import chain_hash
 
 log = logging.getLogger("app.service")
 
@@ -36,7 +37,29 @@ def _unlock_devices(device_ids) -> None:
 
 
 def audit(db, user: str, action: str, detail: str) -> None:
-    db.add(AuditLog(user=user, action=action, detail=detail, created_at=utcnow()))
+    now = utcnow()
+    prev = db.scalar(select(AuditLog.chain_hash).order_by(AuditLog.id.desc()).limit(1)) or ""
+    entry = AuditLog(user=user, action=action, detail=detail, created_at=now)
+    entry.chain_hash = chain_hash(prev, user, action, detail, now.strftime("%Y-%m-%d %H:%M:%S.%f"))
+    db.add(entry)
+
+
+def verify_audit_chain(db) -> tuple[bool, str]:
+    """Verifica a integridade do encadeamento da auditoria (trilha imutavel).
+
+    Devolve ``(ok, detalhe)``. ``ok=False`` indica adulteracao (registro
+    removido/editado) e ``detalhe`` aponta o primeiro registro inconsistente.
+    """
+    rows = db.scalars(select(AuditLog).order_by(AuditLog.id)).all()
+    prev = ""
+    for r in rows:
+        expected = chain_hash(
+            prev, r.user, r.action, r.detail, r.created_at.strftime("%Y-%m-%d %H:%M:%S.%f")
+        )
+        if r.chain_hash != expected:
+            return False, f"registro {r.id}"
+        prev = r.chain_hash
+    return True, ""
 
 
 # ---------------------------------------------------------------------------

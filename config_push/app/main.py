@@ -68,11 +68,15 @@ from .models import (
 from .prompts import DEFAULT_PROMPTS
 from .security import (
     MIN_PASSWORD_LEN,
+    decrypt_secret,
     encrypt_secret,
     generate_api_token,
+    generate_totp_secret,
     hash_api_token,
     hash_password,
+    totp_uri,
     verify_password,
+    verify_totp,
 )
 from .service import (
     audit,
@@ -525,6 +529,11 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
             and verify_password(password, user.password_hash)
         ):
             _login_clear(key)
+            if user.totp_enabled:
+                request.session["mfa_pending"] = user.username
+                audit(db, user.username, "login", "senha ok (local); aguardando 2FA")
+                db.commit()
+                return RedirectResponse("/mfa", status_code=303)
             request.session["user"] = {"name": user.username, "role": user.role}
             audit(db, user.username, "login", "ok (local)")
             db.commit()
@@ -555,6 +564,11 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
                         u.email = info["email"]
                     u.role = info["role"]  # papel sempre vem do grupo AD
                 db.commit()
+                if u.totp_enabled:
+                    request.session["mfa_pending"] = u.username
+                    audit(db, u.username, "login", "senha ok (ldap); aguardando 2FA")
+                    db.commit()
+                    return RedirectResponse("/mfa", status_code=303)
                 request.session["user"] = {"name": u.username, "role": u.role}
                 audit(db, u.username, "login", f"ok (ldap role={u.role})")
                 db.commit()
@@ -567,6 +581,42 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     finally:
         db.close()
     return render(request, "login.html", error=translate(_lang(request), "msg.login_invalid"))
+
+
+@app.get("/mfa", response_class=HTMLResponse)
+def mfa_form(request: Request):
+    pending = request.session.get("mfa_pending")
+    if not pending:
+        return RedirectResponse("/login", status_code=303)
+    return render(request, "mfa.html", error=None, username=pending)
+
+
+@app.post("/mfa")
+def mfa_submit(request: Request, code: str = Form(...)):
+    username = request.session.get("mfa_pending")
+    if not username:
+        return RedirectResponse("/login", status_code=303)
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User).where(User.username == username))
+        secret = decrypt_secret(user.totp_secret_enc) if user else ""
+        if secret and verify_totp(secret, code):
+            request.session.pop("mfa_pending", None)
+            request.session["user"] = {"name": user.username, "role": user.role}
+            audit(db, user.username, "login", "2FA ok")
+            db.commit()
+            return RedirectResponse("/", status_code=303)
+        if user:
+            audit(db, user.username, "login", "2FA falhou")
+            db.commit()
+    finally:
+        db.close()
+    return render(
+        request,
+        "mfa.html",
+        error=translate(_lang(request), "mfa.invalid"),
+        username=username,
+    )
 
 
 @app.get("/logout")
@@ -591,11 +641,20 @@ def _render_account(request: Request, user, error=None, ok=None, new_token=None)
                 .order_by(ApiToken.id.desc())
             ).all()
         )
+        u = db.scalar(select(User).where(User.username == user["name"]))
+        totp_enabled = bool(u.totp_enabled) if u else False
+        totp_secret = ""
+        totp_uri_str = ""
+        if u and not u.totp_enabled and u.totp_secret_enc:
+            totp_secret = decrypt_secret(u.totp_secret_enc)
+            if totp_secret:
+                totp_uri_str = totp_uri(totp_secret, u.username)
     finally:
         db.close()
     return render(
         request, "account.html",
         error=error, ok=ok, new_token=new_token, tokens=tokens,
+        totp_enabled=totp_enabled, totp_secret=totp_secret, totp_uri=totp_uri_str,
     )
 
 
@@ -708,6 +767,57 @@ def account_language(request: Request, language: str = Form("pt")):
     finally:
         db.close()
     return RedirectResponse("/account", status_code=303)
+
+
+@app.post("/account/2fa/setup")
+def account_2fa_setup(request: Request):
+    user = require_login(request)
+    db = SessionLocal()
+    try:
+        u = db.scalar(select(User).where(User.username == user["name"]))
+        if u and not u.totp_enabled:
+            u.totp_secret_enc = encrypt_secret(generate_totp_secret())
+            audit(db, u.username, "mfa_setup", "iniciado")
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/account", status_code=303)
+
+
+@app.post("/account/2fa/confirm")
+def account_2fa_confirm(request: Request, code: str = Form(...)):
+    user = require_login(request)
+    lang = user.get("language") or "pt"
+    db = SessionLocal()
+    try:
+        u = db.scalar(select(User).where(User.username == user["name"]))
+        secret = decrypt_secret(u.totp_secret_enc) if u else ""
+        if u and not u.totp_enabled and secret and verify_totp(secret, code):
+            u.totp_enabled = True
+            audit(db, u.username, "mfa_enable", "ok")
+            db.commit()
+            return RedirectResponse("/account", status_code=303)
+    finally:
+        db.close()
+    return _render_account(request, user, error=translate(lang, "mfa.invalid"))
+
+
+@app.post("/account/2fa/disable")
+def account_2fa_disable(request: Request, password: str = Form(...)):
+    user = require_login(request)
+    lang = user.get("language") or "pt"
+    db = SessionLocal()
+    try:
+        u = db.scalar(select(User).where(User.username == user["name"]))
+        if u and u.totp_enabled and verify_password(password, u.password_hash):
+            u.totp_enabled = False
+            u.totp_secret_enc = ""
+            audit(db, u.username, "mfa_disable", "ok")
+            db.commit()
+            return RedirectResponse("/account", status_code=303)
+    finally:
+        db.close()
+    return _render_account(request, user, error=translate(lang, "mfa.password_wrong"))
 
 
 @app.get("/", response_class=HTMLResponse)

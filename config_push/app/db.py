@@ -1,7 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy import create_engine, event, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -122,6 +122,10 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE users ADD COLUMN auth_source VARCHAR(10) DEFAULT 'local'"))
             if "ldap_dn" not in ucols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN ldap_dn VARCHAR(255) DEFAULT ''"))
+            if "totp_secret_enc" not in ucols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN totp_secret_enc TEXT DEFAULT ''"))
+            if "totp_enabled" not in ucols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0"))
     if "settings" in insp.get_table_names():
         setcols = {c["name"] for c in insp.get_columns("settings")}
         with engine.begin() as conn:
@@ -196,6 +200,11 @@ def ensure_schema() -> None:
             ):
                 if col not in setcols:
                     conn.execute(text(f"ALTER TABLE settings ADD COLUMN {col} {ddl}"))
+    if "audit_log" in insp.get_table_names():
+        acols = {c["name"] for c in insp.get_columns("audit_log")}
+        if "chain_hash" not in acols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE audit_log ADD COLUMN chain_hash VARCHAR(64) DEFAULT ''"))
     if _IS_SQLITE and "devices" in insp.get_table_names():
         # indice unico de IP (best-effort: so cria se nao houver duplicatas legadas)
         try:
@@ -212,4 +221,32 @@ def ensure_schema() -> None:
                     )
         except Exception:  # noqa: BLE001
             pass
+    _backfill_audit_chain()
+
+
+def _backfill_audit_chain() -> None:
+    """Encadeia os registros de auditoria legados (idempotente, roda no boot)."""
+    from .models import AuditLog
+    from .security import chain_hash
+
+    db = SessionLocal()
+    try:
+        rows = db.scalars(select(AuditLog).order_by(AuditLog.id)).all()
+        prev = ""
+        dirty = False
+        for r in rows:
+            if not r.chain_hash:
+                r.chain_hash = chain_hash(
+                    prev,
+                    r.user,
+                    r.action,
+                    r.detail,
+                    r.created_at.strftime("%Y-%m-%d %H:%M:%S.%f"),
+                )
+                dirty = True
+            prev = r.chain_hash
+        if dirty:
+            db.commit()
+    finally:
+        db.close()
 

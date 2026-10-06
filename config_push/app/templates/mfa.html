@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ t('mfa.title') }}{% endblock %}
+{% block content %}
+<div class="card narrow center">
+  <h1>{{ t('mfa.title') }}</h1>
+  <p class="muted">{{ t('mfa.hint') }} ({{ username }})</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" action="/mfa" class="left">
+    <label>{{ t('mfa.code') }}<input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" autofocus required></label>
+    <button class="btn primary full" type="submit">{{ t('mfa.submit') }}</button>
+  </form>
+</div>
+{% endblock %}
