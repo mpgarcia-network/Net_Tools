@@ -17,6 +17,7 @@ T: dict[str, dict[str, str]] = {
     "nav.approvals": {"pt": "Aprovações", "en": "Approvals", "es": "Aprobaciones"},
     "nav.schedules": {"pt": "Agendamentos", "en": "Schedules", "es": "Programaciones"},
     "nav.audit": {"pt": "Auditoria", "en": "Audit", "es": "Auditoría"},
+    "nav.reports": {"pt": "Relatórios", "en": "Reports", "es": "Informes"},
     "nav.users": {"pt": "Usuários", "en": "Users", "es": "Usuarios"},
     "nav.settings": {"pt": "Configurações", "en": "Settings", "es": "Configuración"},
     "nav.account": {"pt": "conta", "en": "account", "es": "cuenta"},
@@ -329,6 +330,20 @@ T: dict[str, dict[str, str]] = {
     "aud.th_when": {"pt": "Quando", "en": "When", "es": "Cuándo"},
     "aud.th_detail": {"pt": "Detalhe", "en": "Detail", "es": "Detalle"},
     "aud.empty": {"pt": "Sem registros.", "en": "No records.", "es": "Sin registros."},
+
+    # --- relatorios ---
+    "rep.title": {"pt": "Relatórios", "en": "Reports", "es": "Informes"},
+    "rep.type": {"pt": "Tipo de relatório", "en": "Report type", "es": "Tipo de informe"},
+    "rep.type_runs": {"pt": "Execuções", "en": "Executions", "es": "Ejecuciones"},
+    "rep.type_compliance": {"pt": "Conformidade", "en": "Compliance", "es": "Conformidad"},
+    "rep.type_backups": {"pt": "Backups", "en": "Backups", "es": "Copias de seguridad"},
+    "rep.from": {"pt": "De (AAAA-MM-DD)", "en": "From (YYYY-MM-DD)", "es": "Desde (AAAA-MM-DD)"},
+    "rep.to": {"pt": "Até (AAAA-MM-DD)", "en": "To (YYYY-MM-DD)", "es": "Hasta (AAAA-MM-DD)"},
+    "rep.filter": {"pt": "Filtrar", "en": "Filter", "es": "Filtrar"},
+    "rep.clear": {"pt": "Limpar", "en": "Clear", "es": "Limpiar"},
+    "rep.export": {"pt": "Exportar CSV", "en": "Export CSV", "es": "Exportar CSV"},
+    "rep.empty": {"pt": "Nenhum registro no período.", "en": "No records in the period.", "es": "Sin registros en el período."},
+    "rep.count": {"pt": "{n} registro(s)", "en": "{n} record(s)", "es": "{n} registro(s)"},
 
     # --- usuarios ---
     "usr.title": {"pt": "Usuários", "en": "Users", "es": "Usuarios"},

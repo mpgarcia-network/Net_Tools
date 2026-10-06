@@ -3748,6 +3748,138 @@ def audit_export(
 
 
 # ---------------------------------------------------------------------------
+# Relatorios
+# ---------------------------------------------------------------------------
+REPORT_TYPES = ("runs", "compliance", "backups")
+
+
+def _report_range(date_from: str, date_to: str) -> tuple[datetime, datetime]:
+    """Datas do filtro (YYYY-MM-DD) em datetime [inicio, fim) do periodo."""
+    start = utcnow() - timedelta(days=30)
+    end = utcnow() + timedelta(days=1)
+    try:
+        if date_from:
+            start = datetime.strptime(date_from, "%Y-%m-%d")
+    except ValueError:
+        pass
+    try:
+        if date_to:
+            end = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+    except ValueError:
+        pass
+    return start, end
+
+
+def _report_data(db, report_type: str, date_from: str, date_to: str) -> tuple[list[str], list[list[str]]]:
+    """(colunas, linhas) do relatorio no periodo. linhas = list[list[str]]."""
+    start, end = _report_range(date_from, date_to)
+    if report_type == "runs":
+        columns = [
+            "run", "snippet", "status_run", "solicitado_por", "dry_run", "criado_em",
+            "device", "ip", "status", "erro", "inicio", "fim",
+        ]
+        pairs = db.execute(
+            select(Run, RunTarget)
+            .join(RunTarget, RunTarget.run_id == Run.id)
+            .where(Run.created_at >= start, Run.created_at < end)
+            .order_by(Run.id.desc(), RunTarget.id)
+        ).all()
+        rows = [
+            [
+                str(run.id), run.snippet_name, run.status, run.requested_by,
+                "sim" if run.dry_run else "nao",
+                run.created_at.strftime("%Y-%m-%d %H:%M:%S") if run.created_at else "",
+                t.device_name, t.device_ip, t.status, t.error,
+                t.started_at.strftime("%Y-%m-%d %H:%M:%S") if t.started_at else "",
+                t.finished_at.strftime("%Y-%m-%d %H:%M:%S") if t.finished_at else "",
+            ]
+            for run, t in pairs
+        ]
+    elif report_type == "compliance":
+        columns = [
+            "run", "politica", "status_run", "total", "compliant", "violations",
+            "errors", "solicitado_por", "criado_em", "device", "ip", "status_device", "findings",
+        ]
+        pairs = db.execute(
+            select(ComplianceRun, ComplianceResult)
+            .join(ComplianceResult, ComplianceResult.run_id == ComplianceRun.id)
+            .where(ComplianceRun.created_at >= start, ComplianceRun.created_at < end)
+            .order_by(ComplianceRun.id.desc(), ComplianceResult.id)
+        ).all()
+        rows = [
+            [
+                str(run.id), run.policy_name, run.status, str(run.total),
+                str(run.compliant), str(run.violations), str(run.errors),
+                run.requested_by,
+                run.created_at.strftime("%Y-%m-%d %H:%M:%S") if run.created_at else "",
+                r.device_name, r.device_ip, r.status, r.findings,
+            ]
+            for run, r in pairs
+        ]
+    elif report_type == "backups":
+        columns = ["id", "device", "ip", "status", "changed", "source", "criado_em"]
+        recs = db.scalars(
+            select(Backup)
+            .where(Backup.created_at >= start, Backup.created_at < end)
+            .order_by(Backup.id.desc())
+        ).all()
+        rows = [
+            [
+                str(b.id), b.device_name, b.device_ip, b.status,
+                "sim" if b.changed else "nao", b.source,
+                b.created_at.strftime("%Y-%m-%d %H:%M:%S") if b.created_at else "",
+            ]
+            for b in recs
+        ]
+    else:
+        columns, rows = [], []
+    return columns, rows
+
+
+@app.get("/reports", response_class=HTMLResponse)
+def reports_list(request: Request, type: str = "runs", date_from: str = "", date_to: str = ""):
+    require_role(request, AUDIT_ROLES)
+    report_type = type if type in REPORT_TYPES else "runs"
+    db = SessionLocal()
+    try:
+        columns, rows = _report_data(db, report_type, date_from, date_to)
+    finally:
+        db.close()
+    return render(
+        request,
+        "reports.html",
+        report_type=report_type,
+        report_types=REPORT_TYPES,
+        date_from=date_from,
+        date_to=date_to,
+        columns=columns,
+        rows=rows[:200],
+        total=len(rows),
+    )
+
+
+@app.get("/reports/export.csv")
+def reports_export(request: Request, type: str = "runs", date_from: str = "", date_to: str = ""):
+    require_role(request, AUDIT_ROLES)
+    report_type = type if type in REPORT_TYPES else "runs"
+    db = SessionLocal()
+    try:
+        columns, rows = _report_data(db, report_type, date_from, date_to)
+    finally:
+        db.close()
+    buf = StringIO()
+    writer = csv.writer(buf, delimiter=";")
+    writer.writerow(columns)
+    writer.writerows(rows)
+    data = "\ufeff" + buf.getvalue()
+    return Response(
+        content=data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename=relatorio-{report_type}.csv"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Usuarios
 # ---------------------------------------------------------------------------
 @app.get("/users", response_class=HTMLResponse)

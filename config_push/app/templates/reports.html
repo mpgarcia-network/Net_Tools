@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row between">
+  <h1>{{ t('rep.title') }}</h1>
+  <a class="btn primary" href="/reports/export.csv?type={{ report_type }}&date_from={{ date_from|urlencode }}&date_to={{ date_to|urlencode }}">{{ t('rep.export') }}</a>
+</div>
+
+<form class="card" method="get" action="/reports">
+  <div class="grid2">
+    <label>{{ t('rep.type') }}
+      <select name="type">
+        {% for rt in report_types %}
+        <option value="{{ rt }}" {% if rt == report_type %}selected{% endif %}>{{ t('rep.type_' ~ rt) }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>{{ t('rep.from') }}<input name="date_from" value="{{ date_from }}" placeholder="2026-01-01"></label>
+    <label>{{ t('rep.to') }}<input name="date_to" value="{{ date_to }}" placeholder="2026-01-31"></label>
+  </div>
+  <div class="row end">
+    <a class="btn" href="/reports">{{ t('rep.clear') }}</a>
+    <button class="btn primary" type="submit">{{ t('rep.filter') }}</button>
+  </div>
+</form>
+
+<p class="muted">{{ t('rep.count', n=total) }}</p>
+<table>
+  <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+  {% else %}
+    <tr><td colspan="{{ columns|length or 1 }}" class="muted">{{ t('rep.empty') }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
