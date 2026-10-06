@@ -80,6 +80,7 @@ T: dict[str, dict[str, str]] = {
     "account.2fa_confirm_code": {"pt": "Código de 6 dígitos", "en": "6-digit code", "es": "Código de 6 dígitos"},
     "account.2fa_confirm": {"pt": "Confirmar", "en": "Confirm", "es": "Confirmar"},
     "account.2fa_disable": {"pt": "Desabilitar 2FA", "en": "Disable 2FA", "es": "Deshabilitar 2FA"},
+    "account.2fa_regenerate": {"pt": "Gerar novo (revoga o atual)", "en": "Regenerate (revokes current)", "es": "Regenerar (revoca el actual)"},
     "account.2fa_password": {"pt": "Senha para desabilitar", "en": "Password to disable", "es": "Contraseña para deshabilitar"},
     "mfa.title": {"pt": "Verificação em duas etapas", "en": "Two-factor verification", "es": "Verificación en dos pasos"},
     "mfa.hint": {"pt": "Digite o código do seu app autenticador.", "en": "Enter the code from your authenticator app.", "es": "Ingrese el código de su app de autenticación."},
@@ -87,6 +88,9 @@ T: dict[str, dict[str, str]] = {
     "mfa.submit": {"pt": "Verificar", "en": "Verify", "es": "Verificar"},
     "mfa.invalid": {"pt": "Código inválido.", "en": "Invalid code.", "es": "Código inválido."},
     "mfa.password_wrong": {"pt": "Senha incorreta.", "en": "Incorrect password.", "es": "Contraseña incorrecta."},
+    "mfa.cannot_disable": {"pt": "O MFA é obrigatório para o seu papel; não é possível desabilitar.", "en": "MFA is mandatory for your role; it cannot be disabled.", "es": "El MFA es obligatorio para su rol; no se puede deshabilitar."},
+    "mfa.setup_title": {"pt": "Configurar verificação em duas etapas", "en": "Set up two-factor verification", "es": "Configurar verificación en dos pasos"},
+    "mfa.setup_hint": {"pt": "Escaneie o QR code no app autenticador para continuar.", "en": "Scan the QR code with your authenticator app to continue.", "es": "Escanea el código QR con tu app de autenticación para continuar."},
 
     # --- dashboard ---
     "dash.title": {"pt": "Dashboard", "en": "Dashboard", "es": "Panel"},
@@ -453,6 +457,10 @@ T: dict[str, dict[str, str]] = {
     "set.templates_vars": {"pt": "JSON (globals + sites)", "en": "JSON (globals + sites)", "es": "JSON (globals + sites)"},
     "set.templates_example": {"pt": "Exemplo:", "en": "Example:", "es": "Ejemplo:"},
     "set.ldap_title": {"pt": "Active Directory / LDAP", "en": "Active Directory / LDAP", "es": "Active Directory / LDAP"},
+    "set.mfa_title": {"pt": "Autenticação em duas etapas (MFA)", "en": "Two-factor authentication (MFA)", "es": "Autenticación en dos pasos (MFA)"},
+    "set.mfa_hint": {"pt": "Exige o cadastro do 2FA no primeiro login de usuários não-administradores.", "en": "Requires 2FA setup on the first login of non-admin users.", "es": "Requiere configurar 2FA en el primer inicio de sesión de usuarios no administradores."},
+    "set.mfa_required": {"pt": "Exigir MFA para todos os usuários (exceto admin)", "en": "Require MFA for all users (except admin)", "es": "Exigir MFA para todos los usuarios (excepto admin)"},
+    "set.mfa_save": {"pt": "Salvar", "en": "Save", "es": "Guardar"},
     "set.ldap_hint": {"pt": "Login via AD (bind) com mapeamento de grupos para papéis. Mantenha o login local como fallback.", "en": "AD login (bind) with group-to-role mapping. Keep local login as fallback.", "es": "Login vía AD (bind) con mapeo de grupos a roles. Mantenga el login local como respaldo."},
     "set.ldap_mode": {"pt": "Modo de autenticação", "en": "Authentication mode", "es": "Modo de autenticación"},
     "set.ldap_mode_local": {"pt": "Somente local", "en": "Local only", "es": "Solo local"},

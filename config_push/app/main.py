@@ -534,6 +534,13 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
                 audit(db, user.username, "login", "senha ok (local); aguardando 2FA")
                 db.commit()
                 return RedirectResponse("/mfa", status_code=303)
+            if st.mfa_required and user.role != "admin":
+                if not user.totp_secret_enc:
+                    user.totp_secret_enc = encrypt_secret(generate_totp_secret())
+                request.session["mfa_pending"] = user.username
+                audit(db, user.username, "login", "senha ok (local); MFA obrigatorio - setup")
+                db.commit()
+                return RedirectResponse("/mfa/setup", status_code=303)
             request.session["user"] = {"name": user.username, "role": user.role}
             audit(db, user.username, "login", "ok (local)")
             db.commit()
@@ -569,6 +576,13 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
                     audit(db, u.username, "login", "senha ok (ldap); aguardando 2FA")
                     db.commit()
                     return RedirectResponse("/mfa", status_code=303)
+                if st.mfa_required and u.role != "admin":
+                    if not u.totp_secret_enc:
+                        u.totp_secret_enc = encrypt_secret(generate_totp_secret())
+                    request.session["mfa_pending"] = u.username
+                    audit(db, u.username, "login", "senha ok (ldap); MFA obrigatorio - setup")
+                    db.commit()
+                    return RedirectResponse("/mfa/setup", status_code=303)
                 request.session["user"] = {"name": u.username, "role": u.role}
                 audit(db, u.username, "login", f"ok (ldap role={u.role})")
                 db.commit()
@@ -619,6 +633,65 @@ def mfa_submit(request: Request, code: str = Form(...)):
     )
 
 
+def _render_mfa_setup(request: Request, username: str, error=None):
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User).where(User.username == username))
+        secret = ""
+        uri = ""
+        if user:
+            secret = decrypt_secret(user.totp_secret_enc)
+            if not secret:
+                secret = generate_totp_secret()
+                user.totp_secret_enc = encrypt_secret(secret)
+                db.commit()
+            uri = totp_uri(secret, user.username)
+    finally:
+        db.close()
+    qr = _qr_svg(uri) if uri else ""
+    return render(
+        request,
+        "mfa_setup.html",
+        username=username,
+        secret=secret,
+        totp_uri=uri,
+        totp_qr=qr,
+        error=error,
+    )
+
+
+@app.get("/mfa/setup", response_class=HTMLResponse)
+def mfa_setup_form(request: Request):
+    username = request.session.get("mfa_pending")
+    if not username:
+        return RedirectResponse("/login", status_code=303)
+    return _render_mfa_setup(request, username)
+
+
+@app.post("/mfa/setup")
+def mfa_setup_submit(request: Request, code: str = Form(...)):
+    username = request.session.get("mfa_pending")
+    if not username:
+        return RedirectResponse("/login", status_code=303)
+    db = SessionLocal()
+    try:
+        user = db.scalar(select(User).where(User.username == username))
+        secret = decrypt_secret(user.totp_secret_enc) if user else ""
+        if user and secret and verify_totp(secret, code):
+            user.totp_enabled = True
+            request.session.pop("mfa_pending", None)
+            request.session["user"] = {"name": user.username, "role": user.role}
+            audit(db, user.username, "login", "MFA setup concluido")
+            db.commit()
+            return RedirectResponse("/", status_code=303)
+        if user:
+            audit(db, user.username, "login", "MFA setup falhou")
+            db.commit()
+    finally:
+        db.close()
+    return _render_mfa_setup(request, username, error=translate(_lang(request), "mfa.invalid"))
+
+
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
@@ -653,6 +726,7 @@ def _render_account(request: Request, user, error=None, ok=None, new_token=None)
         )
         u = db.scalar(select(User).where(User.username == user["name"]))
         totp_enabled = bool(u.totp_enabled) if u else False
+        mfa_required = bool(get_settings(db).mfa_required)
         totp_secret = ""
         totp_uri_str = ""
         if u and not u.totp_enabled and u.totp_secret_enc:
@@ -662,11 +736,12 @@ def _render_account(request: Request, user, error=None, ok=None, new_token=None)
     finally:
         db.close()
     totp_qr = _qr_svg(totp_uri_str) if totp_uri_str else ""
+    can_disable = user["role"] == "admin" or not mfa_required
     return render(
         request, "account.html",
         error=error, ok=ok, new_token=new_token, tokens=tokens,
         totp_enabled=totp_enabled, totp_secret=totp_secret, totp_uri=totp_uri_str,
-        totp_qr=totp_qr,
+        totp_qr=totp_qr, mfa_required=mfa_required, can_disable=can_disable,
     )
 
 
@@ -787,9 +862,11 @@ def account_2fa_setup(request: Request):
     db = SessionLocal()
     try:
         u = db.scalar(select(User).where(User.username == user["name"]))
-        if u and not u.totp_enabled:
+        if u:
+            # gera novo segredo (revoga o anterior, se havia) e volta a "pendente"
             u.totp_secret_enc = encrypt_secret(generate_totp_secret())
-            audit(db, u.username, "mfa_setup", "iniciado")
+            u.totp_enabled = False
+            audit(db, u.username, "mfa_setup", "novo segredo")
             db.commit()
     finally:
         db.close()
@@ -821,6 +898,9 @@ def account_2fa_disable(request: Request, password: str = Form(...)):
     db = SessionLocal()
     try:
         u = db.scalar(select(User).where(User.username == user["name"]))
+        s = get_settings(db)
+        if s.mfa_required and user["role"] != "admin":
+            return _render_account(request, user, error=translate(lang, "mfa.cannot_disable"))
         if u and u.totp_enabled and verify_password(password, u.password_hash):
             u.totp_enabled = False
             u.totp_secret_enc = ""
@@ -4149,6 +4229,7 @@ def settings_page(request: Request):
             "has_ai_key": bool(s.ai_api_key_enc),
             "ai_verify_tls": s.ai_verify_tls,
             "auth_mode": s.auth_mode,
+            "mfa_required": s.mfa_required,
             "ldap_server": s.ldap_server,
             "ldap_domain": s.ldap_domain,
             "ldap_base_dn": s.ldap_base_dn,
@@ -4645,6 +4726,20 @@ def settings_save(
     finally:
         db.close()
     invalidate_branding()
+    return RedirectResponse("/settings", status_code=303)
+
+
+@app.post("/settings/mfa")
+def settings_mfa(request: Request, mfa_required: str = Form("")):
+    actor = require_role(request, {"admin"})
+    db = SessionLocal()
+    try:
+        s = get_settings(db)
+        s.mfa_required = mfa_required == "on"
+        audit(db, actor["name"], "settings_mfa", f"required={s.mfa_required}")
+        db.commit()
+    finally:
+        db.close()
     return RedirectResponse("/settings", status_code=303)
 
 

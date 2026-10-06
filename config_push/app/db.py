@@ -157,6 +157,7 @@ def ensure_schema() -> None:
                 ("pre_commands", "TEXT DEFAULT ''"),
                 ("template_vars", "TEXT DEFAULT ''"),
                 ("auth_mode", "VARCHAR(10) DEFAULT 'local'"),
+                ("mfa_required", "BOOLEAN DEFAULT 0"),
                 ("ldap_server", "VARCHAR(255) DEFAULT ''"),
                 ("ldap_domain", "VARCHAR(120) DEFAULT ''"),
                 ("ldap_base_dn", "VARCHAR(255) DEFAULT ''"),

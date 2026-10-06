@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ t('mfa.setup_title') }}{% endblock %}
+{% block content %}
+<div class="card narrow center">
+  <h1>{{ t('mfa.setup_title') }}</h1>
+  <p class="muted">{{ t('mfa.setup_hint') }} ({{ username }})</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if totp_qr %}
+  <div style="background:#fff;padding:12px;border-radius:8px;display:inline-block;line-height:0">{{ totp_qr | safe }}</div>
+  {% endif %}
+  <p class="muted">{{ t('account.2fa_secret') }}</p>
+  <pre class="code">{{ secret }}</pre>
+  <form method="post" action="/mfa/setup" class="left">
+    <label>{{ t('account.2fa_confirm_code') }}<input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" autofocus required></label>
+    <button class="btn primary full" type="submit">{{ t('account.2fa_confirm') }}</button>
+  </form>
+</div>
+{% endblock %}

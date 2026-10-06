@@ -40,10 +40,15 @@
     <h2>{{ t('account.2fa') }}</h2>
     {% if totp_enabled %}
     <p class="ok">{{ t('account.2fa_enabled') }}</p>
+    <form method="post" action="/account/2fa/setup">
+      <button class="btn" type="submit">{{ t('account.2fa_regenerate') }}</button>
+    </form>
+    {% if can_disable %}
     <form method="post" action="/account/2fa/disable">
       <label>{{ t('account.2fa_password') }}<input type="password" name="password" required></label>
       <button class="btn danger" type="submit">{{ t('account.2fa_disable') }}</button>
     </form>
+    {% endif %}
     {% elif totp_secret %}
     {% if totp_qr %}
     <div style="background:#fff;padding:12px;border-radius:8px;display:inline-block;line-height:0">{{ totp_qr | safe }}</div>

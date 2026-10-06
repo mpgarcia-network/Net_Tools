@@ -127,6 +127,15 @@
 </div>
 
 <div class="card">
+  <h2>{{ t('set.mfa_title') }}</h2>
+  <p class="muted">{{ t('set.mfa_hint') }}</p>
+  <form method="post" action="/settings/mfa">
+    <label class="chk"><input type="checkbox" name="mfa_required" value="on" {{ 'checked' if settings.mfa_required }}> {{ t('set.mfa_required') }}</label>
+    <button class="btn primary" type="submit">{{ t('set.mfa_save') }}</button>
+  </form>
+</div>
+
+<div class="card">
   <h2>{{ t('set.api_title') }}</h2>
   <p class="muted">{{ t('set.api_hint') }}</p>
 </div>

@@ -15,6 +15,7 @@ from app.security import (
     verify_totp,
 )
 from app.service import audit, verify_audit_chain
+from app.settings_store import get_settings
 
 
 def test_totp_gera_e_verifica():
@@ -114,3 +115,37 @@ def test_login_flow_com_2fa():
         r = c.post("/mfa", data={"code": totp_code(secret)}, follow_redirects=False)
         assert r.status_code == 303
         assert r.headers["location"] == "/"
+
+
+def test_mfa_obrigatorio_forca_setup():
+    db = SessionLocal()
+    try:
+        get_settings(db).mfa_required = True
+        db.add(
+            User(
+                username="op-user",
+                password_hash=hash_password("senha123"),
+                role="operator",
+                active=True,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    try:
+        with TestClient(app) as c:
+            r = c.post(
+                "/login",
+                data={"username": "op-user", "password": "senha123"},
+                follow_redirects=False,
+            )
+            assert r.status_code == 303
+            assert r.headers["location"] == "/mfa/setup"
+    finally:
+        db = SessionLocal()
+        try:
+            get_settings(db).mfa_required = False
+            db.commit()
+        finally:
+            db.close()

@@ -354,6 +354,8 @@ class Setting(Base):
     ai_verify_tls: Mapped[bool] = mapped_column(Boolean, default=True)
     # Autenticacao: local | ldap | both (local + AD)
     auth_mode: Mapped[str] = mapped_column(String(10), default="local")
+    # MFA obrigatorio: forca o setup do 2FA no 1o login de usuarios nao-admin
+    mfa_required: Mapped[bool] = mapped_column(Boolean, default=False)
     ldap_server: Mapped[str] = mapped_column(String(255), default="")  # ldap://host:389
     ldap_domain: Mapped[str] = mapped_column(String(120), default="")  # ex.: empresa.local
     ldap_base_dn: Mapped[str] = mapped_column(String(255), default="")  # ex.: DC=emp,DC=local
