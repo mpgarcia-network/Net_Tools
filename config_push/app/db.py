@@ -126,6 +126,8 @@ def ensure_schema() -> None:
                 conn.execute(text("ALTER TABLE users ADD COLUMN totp_secret_enc TEXT DEFAULT ''"))
             if "totp_enabled" not in ucols:
                 conn.execute(text("ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT 0"))
+            if "backup_codes" not in ucols:
+                conn.execute(text("ALTER TABLE users ADD COLUMN backup_codes TEXT DEFAULT '[]'"))
     if "settings" in insp.get_table_names():
         setcols = {c["name"] for c in insp.get_columns("settings")}
         with engine.begin() as conn:

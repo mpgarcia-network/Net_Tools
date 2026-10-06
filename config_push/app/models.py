@@ -26,6 +26,8 @@ class User(Base):
     # 2FA (TOTP): segredo cifrado (base32) e flag de habilitado
     totp_secret_enc: Mapped[str] = mapped_column(Text, default="")
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # codigos de recuperacao (uso unico) - lista JSON de hashes
+    backup_codes: Mapped[str] = mapped_column(Text, default="[]")
     # admin | operator | approver | viewer
     role: Mapped[str] = mapped_column(String(20), default="operator")
     active: Mapped[bool] = mapped_column(Boolean, default=True)

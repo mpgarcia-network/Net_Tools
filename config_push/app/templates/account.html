@@ -5,6 +5,14 @@
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 {% if ok %}<p class="ok">{{ ok }}</p>{% endif %}
 
+{% if backup_codes %}
+<div class="card">
+  <h2>{{ t('account.2fa_backup_codes') }}</h2>
+  <p class="error">{{ t('account.2fa_backup_warning') }}</p>
+  <pre class="code">{{ backup_codes | join('\n') }}</pre>
+</div>
+{% endif %}
+
 <div class="grid2">
   <div class="card">
     <h2>{{ t('account.change') }}</h2>

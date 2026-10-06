@@ -16,6 +16,12 @@
       <td>{{ u.created_at.strftime('%d/%m/%Y') if u.created_at else '' }}</td>
       <td class="nowrap">
         <a href="/users/{{ u.id }}/edit">{{ t('c.edit') }}</a>
+        {% if u.totp_enabled %}
+        <form method="post" action="/users/{{ u.id }}/reset-2fa" style="display:inline"
+              onsubmit="return confirm('{{ t('usr.reset_2fa_confirm') }} {{ u.username }}?')">
+          <button class="link" type="submit">{{ t('usr.reset_2fa') }}</button>
+        </form>
+        {% endif %}
         {% if u.username != user.name %}
         <form method="post" action="/users/{{ u.id }}/delete" style="display:inline"
               onsubmit="return confirm('{{ t('c.remove') }} {{ u.username }}?')">

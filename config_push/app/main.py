@@ -71,8 +71,10 @@ from .security import (
     decrypt_secret,
     encrypt_secret,
     generate_api_token,
+    generate_backup_codes,
     generate_totp_secret,
     hash_api_token,
+    hash_backup_code,
     hash_password,
     totp_uri,
     verify_password,
@@ -597,6 +599,17 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     return render(request, "login.html", error=translate(_lang(request), "msg.login_invalid"))
 
 
+def _consume_backup_code(db, user, code: str) -> bool:
+    """Valida e consome um codigo de recuperacao (uso unico)."""
+    hashes = json.loads(user.backup_codes or "[]")
+    h = hash_backup_code(code)
+    if h in hashes:
+        hashes.remove(h)
+        user.backup_codes = json.dumps(hashes)
+        return True
+    return False
+
+
 @app.get("/mfa", response_class=HTMLResponse)
 def mfa_form(request: Request):
     pending = request.session.get("mfa_pending")
@@ -618,6 +631,12 @@ def mfa_submit(request: Request, code: str = Form(...)):
             request.session.pop("mfa_pending", None)
             request.session["user"] = {"name": user.username, "role": user.role}
             audit(db, user.username, "login", "2FA ok")
+            db.commit()
+            return RedirectResponse("/", status_code=303)
+        if user and _consume_backup_code(db, user, code):
+            request.session.pop("mfa_pending", None)
+            request.session["user"] = {"name": user.username, "role": user.role}
+            audit(db, user.username, "login", "2FA ok (codigo de recuperacao)")
             db.commit()
             return RedirectResponse("/", status_code=303)
         if user:
@@ -737,11 +756,13 @@ def _render_account(request: Request, user, error=None, ok=None, new_token=None)
         db.close()
     totp_qr = _qr_svg(totp_uri_str) if totp_uri_str else ""
     can_disable = user["role"] == "admin" or not mfa_required
+    backup_codes = request.session.pop("mfa_backup_codes", None) or []
     return render(
         request, "account.html",
         error=error, ok=ok, new_token=new_token, tokens=tokens,
         totp_enabled=totp_enabled, totp_secret=totp_secret, totp_uri=totp_uri_str,
         totp_qr=totp_qr, mfa_required=mfa_required, can_disable=can_disable,
+        backup_codes=backup_codes,
     )
 
 
@@ -883,8 +904,11 @@ def account_2fa_confirm(request: Request, code: str = Form(...)):
         secret = decrypt_secret(u.totp_secret_enc) if u else ""
         if u and not u.totp_enabled and secret and verify_totp(secret, code):
             u.totp_enabled = True
+            codes = generate_backup_codes()
+            u.backup_codes = json.dumps([hash_backup_code(c) for c in codes])
             audit(db, u.username, "mfa_enable", "ok")
             db.commit()
+            request.session["mfa_backup_codes"] = codes
             return RedirectResponse("/account", status_code=303)
     finally:
         db.close()
@@ -904,6 +928,7 @@ def account_2fa_disable(request: Request, password: str = Form(...)):
         if u and u.totp_enabled and verify_password(password, u.password_hash):
             u.totp_enabled = False
             u.totp_secret_enc = ""
+            u.backup_codes = "[]"
             audit(db, u.username, "mfa_disable", "ok")
             db.commit()
             return RedirectResponse("/account", status_code=303)
@@ -4182,6 +4207,24 @@ def user_delete(request: Request, user_id: int):
                 raise HTTPException(400, "nao e possivel remover o ultimo admin")
         audit(db, actor["name"], "user_delete", u.username)
         db.delete(u)
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/users", status_code=303)
+
+
+@app.post("/users/{user_id}/reset-2fa")
+def user_reset_2fa(request: Request, user_id: int):
+    actor = require_role(request, {"admin"})
+    db = SessionLocal()
+    try:
+        u = db.get(User, user_id)
+        if not u:
+            raise HTTPException(404, "usuario nao encontrado")
+        u.totp_enabled = False
+        u.totp_secret_enc = ""
+        u.backup_codes = "[]"
+        audit(db, actor["name"], "user_reset_2fa", u.username)
         db.commit()
     finally:
         db.close()

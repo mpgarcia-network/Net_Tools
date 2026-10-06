@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import os
+import secrets
 import time
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -175,6 +176,21 @@ def chain_hash(prev_hash: str, user: str, action: str, detail: str, created_at: 
     """Hash encadeado de um registro de auditoria (anti-tamper)."""
     payload = f"{prev_hash}|{user}|{action}|{detail}|{created_at}"
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def generate_backup_codes(n: int = 8) -> list[str]:
+    """Codigos de recuperacao (uso unico) exibidos uma unica vez no setup do 2FA."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sem 0/O/1/I
+    codes = []
+    for _ in range(n):
+        raw = "".join(secrets.choice(alphabet) for _ in range(12))
+        codes.append(f"{raw[:4]}-{raw[4:8]}-{raw[8:12]}")
+    return codes
+
+
+def hash_backup_code(code: str) -> str:
+    """Hash de um codigo de recuperacao (guardamos so o hash, igual senha)."""
+    return hashlib.sha256((code or "").strip().upper().encode()).hexdigest()
 
 
 # Sentinela: o driver sera detectado em runtime (engine usa SSHDetect).

@@ -42,6 +42,40 @@ def test_qr_svg():
     assert "<svg" in svg
 
 
+def test_backup_codes():
+    from app.security import generate_backup_codes, hash_backup_code
+
+    codes = generate_backup_codes()
+    assert len(codes) == 8
+    assert len(set(codes)) == 8  # unicos
+    assert hash_backup_code(codes[0]) == hash_backup_code(codes[0].lower())
+    assert hash_backup_code(codes[0]) != hash_backup_code(codes[1])
+
+
+def test_consume_backup_code():
+    import json
+
+    from app.main import _consume_backup_code
+    from app.security import hash_backup_code
+
+    db = SessionLocal()
+    try:
+        u = User(
+            username="backup-user",
+            password_hash=hash_password("x"),
+            role="operator",
+            active=True,
+        )
+        code = "ABCD-EFGH-IJKL"
+        u.backup_codes = json.dumps([hash_backup_code(code)])
+        db.add(u)
+        db.commit()
+        assert _consume_backup_code(db, u, code) is True
+        assert _consume_backup_code(db, u, code) is False  # uso unico
+    finally:
+        db.close()
+
+
 def test_chain_hash_deterministic_e_encadeado():
     ts = "2026-01-01 00:00:00.000000"
     h1 = chain_hash("", "u", "login", "ok", ts)
