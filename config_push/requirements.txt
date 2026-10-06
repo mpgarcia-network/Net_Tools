@@ -4,6 +4,7 @@ uvicorn[standard]==0.53.0
 sqlalchemy==2.0.53
 jinja2==3.1.6
 python-multipart==0.0.32
+qrcode==8.2
 itsdangerous==2.2.0
 cryptography==50.0.1
 netmiko==4.7.0
@@ -11,3 +12,4 @@ openpyxl==3.1.5
 croniter==6.2.4
 tzdata==2026.4
 dulwich==1.2.15
+ldap3==2.9.1

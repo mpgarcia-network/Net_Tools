@@ -34,6 +34,13 @@ def test_totp_uri():
     assert "otpauth://totp/" in totp_uri("ABCDEF", "admin")
 
 
+def test_qr_svg():
+    from app.main import _qr_svg
+
+    svg = _qr_svg("otpauth://totp/Teste:admin?secret=ABCDEFGHIJKLMNOP")
+    assert "<svg" in svg
+
+
 def test_chain_hash_deterministic_e_encadeado():
     ts = "2026-01-01 00:00:00.000000"
     h1 = chain_hash("", "u", "login", "ok", ts)

@@ -45,6 +45,9 @@
       <button class="btn danger" type="submit">{{ t('account.2fa_disable') }}</button>
     </form>
     {% elif totp_secret %}
+    {% if totp_qr %}
+    <div style="background:#fff;padding:12px;border-radius:8px;display:inline-block;line-height:0">{{ totp_qr | safe }}</div>
+    {% endif %}
     <p class="muted">{{ t('account.2fa_secret') }}</p>
     <pre class="code">{{ totp_secret }}</pre>
     <p class="muted">{{ t('account.2fa_uri') }}</p>

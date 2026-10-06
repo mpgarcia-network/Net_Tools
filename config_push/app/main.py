@@ -631,6 +631,16 @@ def account(request: Request):
     return _render_account(request, user)
 
 
+def _qr_svg(data: str) -> str:
+    """QR code (SVG) de uma string otpauth://, para o cadastro do 2FA."""
+    import qrcode
+    import qrcode.image.svg
+
+    img = qrcode.make(data, image_factory=qrcode.image.svg.SvgPathImage)
+    raw = img.to_string()
+    return raw.decode() if isinstance(raw, bytes) else raw
+
+
 def _render_account(request: Request, user, error=None, ok=None, new_token=None):
     db = SessionLocal()
     try:
@@ -651,10 +661,12 @@ def _render_account(request: Request, user, error=None, ok=None, new_token=None)
                 totp_uri_str = totp_uri(totp_secret, u.username)
     finally:
         db.close()
+    totp_qr = _qr_svg(totp_uri_str) if totp_uri_str else ""
     return render(
         request, "account.html",
         error=error, ok=ok, new_token=new_token, tokens=tokens,
         totp_enabled=totp_enabled, totp_secret=totp_secret, totp_uri=totp_uri_str,
+        totp_qr=totp_qr,
     )
 
 
