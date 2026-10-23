@@ -1187,9 +1187,29 @@ def device_save(
         device.enabled = bool(enabled)
         audit(db, user["name"], "device_save", f"{device.name} ({device.ip})")
         db.commit()
+        _sync_device_to_rconfig(db, device)
     finally:
         db.close()
     return RedirectResponse("/devices", status_code=303)
+
+
+@app.post("/devices/{device_id}/sync-rconfig")
+def device_sync_rconfig(request: Request, device_id: int):
+    """Dispara manualmente a sync de credenciais de um device p/ o rConfig."""
+    user = require_role(request, MANAGE_ROLES)
+    db = SessionLocal()
+    try:
+        device = db.get(Device, device_id)
+        if not device:
+            raise HTTPException(404, "device nao encontrado")
+        ok = _sync_device_to_rconfig(db, device)
+        if not ok:
+            return RedirectResponse("/devices?error=rconfig_sync", status_code=303)
+        audit(db, user["name"], "device_sync_rconfig", f"{device.name} ({device.ip})")
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/devices?ok=rconfig_sync", status_code=303)
 
 
 @app.post("/devices/test")
@@ -3660,6 +3680,68 @@ def _rconfig_for(index: dict, device) -> dict:
     ip = (getattr(device, "ip", "") or "").strip()
     name = (getattr(device, "name", "") or "").strip().lower()
     return index.get("by_ip", {}).get(ip) or index.get("by_name", {}).get(name) or {}
+
+
+def _rconfig_payload(db, device, conn) -> tuple[dict, str]:
+    """Monta o payload (e id, se existir) p/ criar/atualizar device no rConfig.
+
+    UPDATE: reusa os campos estruturais do device existente (categoria, template,
+    vendor, tag, prompts) e troca so as credenciais.
+    CREATE: copia a estrutura de um device do mesmo vendor ja existente no rConfig.
+    """
+    existing = conn.device_by_ip(device.ip)
+
+    payload = {
+        "device_name": device.name,
+        "device_ip": device.ip,
+        "device_username": device.username or "",
+        "device_password": decrypt_secret(device.password_enc),
+        "device_enable_password": decrypt_secret(device.enable_password_enc)
+        or decrypt_secret(device.maintenance_password_enc),
+        "device_default_creds_on": 0,
+        "device_cred_id": 0,
+        "device_port_override": str(device.port or 22),
+    }
+
+    ref = existing
+    if not ref:
+        # CREATE: referencia por vendor
+        vendor_key = (device.vendor or "").strip().lower()
+        for row in conn._fetch_all_devices():
+            names = [str(v.get("vendorName") or "").strip().lower() for v in (row.get("vendor") or [])]
+            if vendor_key and vendor_key in names:
+                ref = row
+                break
+
+    if ref:
+        ids_tpl = [t.get("id") for t in (ref.get("template") or []) if t.get("id")]
+        ids_ven = [v.get("id") for v in (ref.get("vendor") or []) if v.get("id")]
+        ids_tag = [t.get("id") for t in (ref.get("tag") or []) if t.get("id")]
+        payload.update({
+            "device_model": device.model or ref.get("device_model") or "Unknown",
+            "device_category_id": ref.get("device_category_id"),
+            "device_main_prompt": ref.get("device_main_prompt") or "",
+            "device_enable_prompt": ref.get("device_enable_prompt") or "",
+            "device_template": ids_tpl,
+            "device_vendor": ids_ven,
+            "device_tags": ids_tag,
+            "device_version": ref.get("device_version") or "",
+        })
+        return payload, str(ref.get("id") or "") if existing else ""
+
+    return {}, ""
+
+
+def _sync_device_to_rconfig(db, device) -> bool:
+    """Propaga as credenciais de um device p/ o rConfig (best-effort)."""
+    try:
+        conn = _rconfig_connector(db)
+        payload, rid = _rconfig_payload(db, device, conn)
+        if not payload:
+            return False
+        return bool(conn.upsert_device(payload, rid))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 @app.get("/backups", response_class=HTMLResponse)

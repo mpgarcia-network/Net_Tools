@@ -145,6 +145,7 @@ T: dict[str, dict[str, str]] = {
     "dev.title": {"pt": "Devices", "en": "Devices", "es": "Dispositivos"},
     "dev.download_template": {"pt": "Baixar modelo .xlsx", "en": "Download .xlsx template", "es": "Descargar plantilla .xlsx"},
     "dev.new": {"pt": "Novo device", "en": "New device", "es": "Nuevo dispositivo"},
+    "dev.sync_rconfig": {"pt": "Sync rConfig", "en": "Sync rConfig", "es": "Sync rConfig"},
     "dev.import_label": {
         "pt": "Importar .xlsx ou CSV (export do LibreNMS) — colunas: Hostname/Nome, IP, OS/Vendor, Modelo, Usuário, Senha, Protocolo, Porta",
         "en": "Import .xlsx or CSV (LibreNMS export) — columns: Hostname/Name, IP, OS/Vendor, Model, Username, Password, Protocol, Port",

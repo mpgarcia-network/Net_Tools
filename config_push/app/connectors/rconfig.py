@@ -208,6 +208,44 @@ class RConfigConnector:
             ok_any = self.trigger_backup(ext) or ok_any
         return ok_any
 
+    # -- criar/atualizar device (sync de credenciais) ------------------------
+    def upsert_device(self, payload: dict, device_id: str = "") -> str:
+        """Cria (POST) ou atualiza (PUT) um device no rConfig v2.
+
+        Devolve o id do device no rConfig, ou "" em caso de falha.
+        """
+        if not self.available() or not payload:
+            return ""
+        have_id = str(device_id or "").strip()
+        if have_id.isdigit():
+            path = f"/api/v2/devices/{int(have_id)}"
+            method = "PUT"
+        else:
+            path = "/api/v2/devices"
+            method = "POST"
+        try:
+            raw = self._req(path, method=method, data=payload)
+            data = json.loads(raw.decode())
+        except Exception:  # noqa: BLE001
+            return ""
+        if isinstance(data, dict):
+            inner = data.get("data") if isinstance(data.get("data"), dict) else data
+            rid = inner.get("id") or inner.get("device_id")
+            if rid:
+                return str(rid)
+            if have_id:
+                return have_id
+        return ""
+
+    def device_by_ip(self, ip: str) -> dict:
+        """Device do rConfig (com relacionamentos) localizado pelo IP, ou {}."""
+        if not self.available() or not ip:
+            return {}
+        for row in self._fetch_all_devices():
+            if (row.get("device_ip") or "").strip() == ip.strip():
+                return row
+        return {}
+
     # -- versoes -------------------------------------------------------------
     def versions(self, external_id: str, with_content: bool = False) -> list[dict]:
         """Todas as versoes de config do device (GET v1 all-by-deviceid).

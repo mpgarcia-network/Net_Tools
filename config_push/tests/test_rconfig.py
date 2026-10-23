@@ -224,3 +224,61 @@ def test_config_text(monkeypatch):
     assert c.config_text("2", "999") == ""
     # sem id: devolve a versao mais recente (maior id)
     assert c.config_text("2", "") == "CONFIG-11"
+
+
+def test_upsert_device_post_e_put(monkeypatch):
+    c = _conn()
+    seen = {}
+
+    def fake_req(path, method="GET", data=None, accept="application/json"):
+        seen["path"] = path
+        seen["method"] = method
+        seen["data"] = data
+        return b'{"success":true,"data":{"id":42}}'
+
+    monkeypatch.setattr(c, "_req", fake_req)
+    assert c.upsert_device({"device_name": "sw1"}) == "42"
+    assert seen["method"] == "POST"
+    assert seen["path"] == "/api/v2/devices"
+    assert c.upsert_device({"device_name": "sw1"}, "42") == "42"
+    assert seen["method"] == "PUT"
+    assert seen["path"] == "/api/v2/devices/42"
+
+
+def test_rconfig_payload_reusa_estrutura():
+    from app.main import _rconfig_payload
+    from app.models import Device
+    from app.security import encrypt_secret
+
+    class FakeConn:
+        def device_by_ip(self, ip):
+            return {
+                "id": 75,
+                "device_model": "2930F",
+                "device_category_id": 2,
+                "device_main_prompt": "SW#",
+                "device_enable_prompt": "SW>",
+                "template": [{"id": 5}],
+                "vendor": [{"id": 1}],
+                "tag": [{"id": 2}],
+                "device_version": "",
+            }
+
+        def _fetch_all_devices(self):
+            return []
+
+    d = Device(
+        name="sw1",
+        ip="10.0.0.1",
+        username="admin",
+        password_enc=encrypt_secret("segredo"),
+        port=22,
+    )
+    payload, rid = _rconfig_payload(None, d, FakeConn())
+    assert rid == "75"
+    assert payload["device_category_id"] == 2
+    assert payload["device_template"] == [5]
+    assert payload["device_vendor"] == [1]
+    assert payload["device_tags"] == [2]
+    assert payload["device_username"] == "admin"
+    assert payload["device_password"] == "segredo"

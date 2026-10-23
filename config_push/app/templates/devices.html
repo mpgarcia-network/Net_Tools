@@ -170,6 +170,9 @@
       <td data-col="enabled">{{ t('c.yes') if d.enabled else t('c.no') }}</td>
       <td class="nowrap">
         <a href="/devices/{{ d.id }}/edit">{{ t('c.edit') }}</a>
+        <form method="post" action="/devices/{{ d.id }}/sync-rconfig">
+          <button class="link" type="submit" title="{{ t('dev.sync_rconfig') }}">{{ t('dev.sync_rconfig') }}</button>
+        </form>
         {% if user.role == 'admin' %}
         <form method="post" action="/devices/{{ d.id }}/delete" onsubmit="return confirm('{{ t('c.remove') }} {{ d.name }}?')">
           <button class="link danger" type="submit">{{ t('c.remove') }}</button>
