@@ -46,6 +46,12 @@
         {% for v in vendors %}<option value="{{ v }}" {{ 'selected' if vendor == v }}>{{ v }}</option>{% endfor %}
       </select>
     </label>
+    <label>{{ t('df.model') }}
+      <select name="model">
+        <option value="">{{ t('bulk.any') }}</option>
+        {% for m in models %}<option value="{{ m }}" {{ 'selected' if model == m }}>{{ m }}</option>{% endfor %}
+      </select>
+    </label>
     <label>{{ t('c.driver') }}
       <select name="driver">
         <option value="">{{ t('bulk.any') }}</option>
@@ -95,6 +101,7 @@
     <input type="hidden" name="scope_q" value="{{ q }}">
     <input type="hidden" name="scope_vendor" value="{{ vendor }}">
     <input type="hidden" name="scope_driver" value="{{ driver }}">
+    <input type="hidden" name="scope_model" value="{{ model }}">
     <input type="hidden" name="scope_protocol" value="{{ protocol }}">
     <input type="hidden" name="scope_active" value="{{ active }}">
     <input type="hidden" name="scope_site" value="{{ site }}">

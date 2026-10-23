@@ -996,6 +996,7 @@ def devices_list(
     q: str = "",
     vendor: str = "",
     driver: str = "",
+    model: str = "",
     protocol: str = "",
     active: str = "",
     site: str = "",
@@ -1035,6 +1036,8 @@ def devices_list(
         conds.append(Device.vendor == vendor.strip())
     if driver.strip():
         conds.append(Device.device_type == driver.strip())
+    if model.strip():
+        conds.append(Device.model == model.strip())
     if protocol.strip():
         conds.append(Device.protocol == protocol.strip())
     if active in ("1", "0"):
@@ -1069,6 +1072,13 @@ def devices_list(
             ).all()
             if s
         ]
+        models = [
+            m
+            for m in db.scalars(
+                select(Device.model).distinct().order_by(Device.model)
+            ).all()
+            if m
+        ]
     finally:
         db.close()
     pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
@@ -1079,6 +1089,7 @@ def devices_list(
         q=q,
         vendor=vendor,
         driver=driver,
+        model=model,
         protocol=protocol,
         active=active,
         site=site,
@@ -1088,6 +1099,7 @@ def devices_list(
         total=total,
         vendors=list(VENDORS.keys()),
         drivers=driver_opts,
+        models=models,
         site_roles=SITE_ROLES,
         sites=sites,
         sort=sort,
@@ -1345,6 +1357,7 @@ def devices_bulk_edit(
     scope_q: str = Form(""),
     scope_vendor: str = Form(""),
     scope_driver: str = Form(""),
+    scope_model: str = Form(""),
     scope_protocol: str = Form(""),
     scope_active: str = Form(""),
     scope_site: str = Form(""),
@@ -1373,6 +1386,8 @@ def devices_bulk_edit(
         conds.append(Device.vendor == scope_vendor.strip())
     if scope_driver.strip():
         conds.append(Device.device_type == scope_driver.strip())
+    if scope_model.strip():
+        conds.append(Device.model == scope_model.strip())
     if scope_protocol.strip():
         conds.append(Device.protocol == scope_protocol.strip())
     if scope_active in ("1", "0"):
