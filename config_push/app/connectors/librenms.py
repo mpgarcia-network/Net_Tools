@@ -45,10 +45,15 @@ _OS_VENDOR_MODEL: dict[str, tuple[str, str]] = {
 
 def _vendor_model(os_name: str, version: str) -> tuple[str, str] | None:
     o = (os_name or "").strip().lower()
+    ver = (version or "").strip()
     if o == "powerconnect":
         # Dell PowerConnect: versao 6.x => familia OS6
-        ver = (version or "").strip()
         return ("Dell", "OS6") if ver.startswith("6") else ("Dell", "PowerConnect")
+    if o in ("comware", "hp_comware", "3com", "h3c"):
+        # Comware V7 (5130 etc.) => moderno; V5/3Com/H3C antigo => legado (_cmdline)
+        modern = o in ("comware", "hp_comware") and ver.startswith("7")
+        model = "Comware V5/V7 (H3C/HPE moderno)" if modern else "3Com/H3C antigo (exige _cmdline-mode)"
+        return ("HP", model)
     return _OS_VENDOR_MODEL.get(o)
 
 
